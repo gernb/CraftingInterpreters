@@ -1,0 +1,40 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CraftingInterpreters}",
+      "name": "Debug CraftingInterpreters",
+      "program": "${workspaceFolder:CraftingInterpreters}/.build/debug/CraftingInterpreters",
+      "preLaunchTask": "swift: Build Debug CraftingInterpreters"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CraftingInterpreters}",
+      "name": "Release CraftingInterpreters",
+      "program": "${workspaceFolder:CraftingInterpreters}/.build/release/CraftingInterpreters",
+      "preLaunchTask": "swift: Build Release CraftingInterpreters"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CraftingInterpreters}",
+      "name": "Debug jlox",
+      "program": "${workspaceFolder:CraftingInterpreters}/.build/debug/jlox",
+      "preLaunchTask": "swift: Build Debug jlox"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CraftingInterpreters}",
+      "name": "Release jlox",
+      "program": "${workspaceFolder:CraftingInterpreters}/.build/release/jlox",
+      "preLaunchTask": "swift: Build Release jlox"
+    }
+  ]
+}
