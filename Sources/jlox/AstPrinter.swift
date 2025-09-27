@@ -12,7 +12,7 @@ struct AstPrinter: Visitor {
   }
 
   func visitLiteralExpr(_ expr: Literal) -> String {
-    "\(expr.value)"
+    "\(expr.value, default: "nil")"
   }
 
   func visitUnaryExpr(_ expr: Unary) -> String {

@@ -12,7 +12,7 @@ try defineAst(
   types: [
     "Binary   -> left: Expr, `operator`: Token, right: Expr",
     "Grouping -> expression: Expr",
-    "Literal  -> value: Any",
+    "Literal  -> value: Any?",
     "Unary    -> `operator`: Token, right: Expr",
   ]
 )

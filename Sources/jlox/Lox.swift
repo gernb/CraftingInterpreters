@@ -42,15 +42,28 @@ struct Lox {
   private static func run(source: String) {
     let scanner = Scanner(source: source)
     let tokens = scanner.scanTokens()
+    let parser = Parser(tokens: tokens)
 
-    // For now, just print the tokens.
-    for token in tokens {
-      print(token)
+    guard let expression = parser.parse() else {
+      // Stop if there was a syntax error.
+      assert(hadError)
+      return
     }
+    assert(hadError == false)
+
+    print(AstPrinter().print(expr: expression))
   }
 
   static func error(line: Int, message: String) {
     report(line: line, where: "", message: message)
+  }
+
+  static func error(token: Token, message: String) {
+    if token.type == .eof {
+      report(line: token.line, where: " at end", message: message)
+    } else {
+      report(line: token.line, where: " at '\(token.lexeme)'", message: message)
+    }
   }
 
   private static func report(line: Int, where: String, message: String) {
