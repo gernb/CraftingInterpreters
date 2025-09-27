@@ -60,17 +60,17 @@ final class Parser {
 
   private func primary() throws -> Expr {
     if match(.false) {
-      return Literal(value: false)
+      return Literal(false)
     }
     if match(.true) {
-      return Literal(value: true)
+      return Literal(true)
     }
     if match(.nil) {
       return Literal(value: nil)
     }
 
     if match(.number(0), .string("")) {
-      return Literal(value: previous().type.literal)
+      return previous().type.value?.literal ?? Literal(value: nil)
     }
 
     if match(.leftParen) {

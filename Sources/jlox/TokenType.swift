@@ -18,11 +18,10 @@ enum TokenType: Equatable {
 
   case eof
 
-  var literal: Any? {
+  var value: Object? {
     switch self {
-    case .identifier(let value): value
-    case .string(let value): value
-    case .number(let value): value
+    case .string(let value): .string(value)
+    case .number(let value): .number(value)
     default: nil
     }
   }

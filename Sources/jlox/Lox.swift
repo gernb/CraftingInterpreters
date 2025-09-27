@@ -2,7 +2,9 @@ import Foundation
 
 @main
 struct Lox {
-  static nonisolated(unsafe) private(set) var hadError = false
+  static nonisolated(unsafe) private let interpreter = Interpreter()
+  static nonisolated(unsafe) private var hadError = false
+  static nonisolated(unsafe) private var hadRuntimeError = false
 
   static func main() throws {
     if CommandLine.arguments.count > 2 {
@@ -24,6 +26,9 @@ struct Lox {
     // Indicate an error in the exit code.
     if hadError {
       exit(65)
+    }
+    if hadRuntimeError {
+      exit(70)
     }
   }
 
@@ -51,7 +56,7 @@ struct Lox {
     }
     assert(hadError == false)
 
-    print(AstPrinter().print(expr: expression))
+    interpreter.interpret(expression: expression)
   }
 
   static func error(line: Int, message: String) {
@@ -64,6 +69,11 @@ struct Lox {
     } else {
       report(line: token.line, where: " at '\(token.lexeme)'", message: message)
     }
+  }
+
+  static func runtimeError(_ error: Interpreter.RuntimeError) {
+    print("\(error.message)\n[line \(error.op.line)]")
+    hadRuntimeError = true
   }
 
   private static func report(line: Int, where: String, message: String) {

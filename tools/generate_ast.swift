@@ -12,7 +12,7 @@ try defineAst(
   types: [
     "Binary   -> left: Expr, `operator`: Token, right: Expr",
     "Grouping -> expression: Expr",
-    "Literal  -> value: Any?",
+    "Literal  -> value: Object?",
     "Unary    -> `operator`: Token, right: Expr",
   ]
 )
@@ -23,7 +23,7 @@ func defineAst(outputDir: String, baseName: String, types: [String]) throws {
   lines.append(contentsOf: defineVisitor(baseName: baseName, types: types))
   lines.append("")
   lines.append("protocol \(baseName) {")
-  lines.append("  func accept<R>(_ visitor: any Visitor<R>) -> R")
+  lines.append("  func accept<R>(_ visitor: any Visitor<R>) throws -> R")
   lines.append("}")
 
   // The AST classes.
@@ -62,8 +62,8 @@ func defineType(baseName: String, className: String, fieldList: String) -> [Stri
 
   // Visitor pattern.
   lines.append("")
-  lines.append("  func accept<R>(_ visitor: any Visitor<R>) -> R {")
-  lines.append("    visitor.visit\(className + baseName)(self)")
+  lines.append("  func accept<R>(_ visitor: any Visitor<R>) throws -> R {")
+  lines.append("    try visitor.visit\(className + baseName)(self)")
   lines.append("  }")
 
   lines.append("}")
@@ -77,7 +77,7 @@ func defineVisitor(baseName: String, types: [String]) -> [String] {
 
   for type in types {
     let typeName = type.components(separatedBy: "->")[0].trimmingCharacters(in: .whitespaces)
-    lines.append("  func visit\(typeName + baseName)(_ \(baseName.lowercased()): \(typeName)) -> R")
+    lines.append("  func visit\(typeName + baseName)(_ \(baseName.lowercased()): \(typeName)) throws -> R")
   }
 
   lines.append("}")

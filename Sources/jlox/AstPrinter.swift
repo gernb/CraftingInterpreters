@@ -1,6 +1,6 @@
 struct AstPrinter: Visitor {
   func print(expr: Expr) -> String {
-    expr.accept(self)
+    try! expr.accept(self)
   }
 
   func visitBinaryExpr(_ expr: Binary) -> String {
@@ -24,7 +24,7 @@ struct AstPrinter: Visitor {
     result.append(name)
     for expr in exprs {
       result.append(" ")
-      result.append(expr.accept(self))
+      try! result.append(expr.accept(self))
     }
     result.append(")")
 
@@ -37,11 +37,11 @@ extension AstPrinter {
     let expression: Expr = Binary(
       left: Unary(
         operator: Token(type: .minus, lexeme: "-", line: 1),
-        right: Literal(value: 123)
+        right: Literal(123)
       ),
       operator: Token(type: .star, lexeme: "*", line: 1),
       right: Grouping(
-        expression: Literal(value: 45.67)
+        expression: Literal(45.67)
       )
     )
     Swift.print(AstPrinter().print(expr: expression))
