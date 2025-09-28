@@ -18,6 +18,12 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
+  func visitAssignExpr(_ expr: Expr.Assign) throws -> Object {
+    let value = try evaluate(expr.value)
+    try environment.assign(name: expr.name, value: value)
+    return value
+  }
+
   func visitBinaryExpr(_ expr: Expr.Binary) throws -> Object {
     let left = try evaluate(expr.left)
     let right = try evaluate(expr.right)

@@ -11,6 +11,7 @@ try defineAst(
   baseName: "Expr",
   visitorGeneric: "R",
   types: [
+    "Assign   -> name: Token, value: Expr",
     "Binary   -> left: Expr, `operator`: Token, right: Expr",
     "Grouping -> expression: Expr",
     "Literal  -> value: Object",

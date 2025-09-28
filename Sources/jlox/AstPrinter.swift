@@ -3,6 +3,10 @@ struct AstPrinter: Expr.Visitor {
     try! expr.accept(self)
   }
 
+  func visitAssignExpr(_ expr: Expr.Assign) throws -> String {
+    parenthesize(name: expr.name.lexeme, exprs: expr.value)
+  }
+
   func visitBinaryExpr(_ expr: Expr.Binary) -> String {
     parenthesize(name: expr.operator.lexeme, exprs: expr.left, expr.right)
   }

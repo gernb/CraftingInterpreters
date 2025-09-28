@@ -11,7 +11,9 @@ statement      → exprStmt
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
 
-expression     → equality ;
+expression     → assignment ;
+assignment     → IDENTIFIER "=" assignment
+               | equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -21,7 +23,8 @@ unary          → ( "!" | "-" ) unary
 primary        → "true" | "false" | "nil"
                | NUMBER | STRING
                | "(" expression ")"
-               | IDENTIFIER ;*/
+               | IDENTIFIER ;
+*/
 
 final class Parser {
   private struct ParseError: Error {}
@@ -81,7 +84,25 @@ final class Parser {
   }
 
   private func expression() throws -> Expr.Expr {
-    try equality()
+    try assignment()
+  }
+
+  private func assignment() throws -> Expr.Expr {
+    let expr = try equality()
+
+    if match(.equal) {
+      let equals = previous()
+      let value = try assignment()
+
+      if let variable = expr as? Expr.Variable {
+        let name = variable.name
+        return Expr.Assign(name: name, value: value)
+      }
+
+      error(token: equals, message: "Invalid assignment target.")
+    }
+
+    return expr
   }
 
   private func equality() throws -> Expr.Expr {
@@ -197,6 +218,7 @@ final class Parser {
     tokens[current - 1]
   }
 
+  @discardableResult
   private func error(token: Token, message: String) -> ParseError {
     Lox.error(token: token, message: message)
     return ParseError()
