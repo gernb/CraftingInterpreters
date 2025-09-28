@@ -31,12 +31,14 @@ equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
-unary          → ( "!" | "-" ) unary
-               | primary ;
+unary          → ( "!" | "-" ) unary | call ;
+call           → primary ( "(" arguments? ")" )* ;
 primary        → "true" | "false" | "nil"
                | NUMBER | STRING
                | "(" expression ")"
                | IDENTIFIER ;
+
+arguments      → expression ( "," expression )* ;
 */
 
 final class Parser {
@@ -234,7 +236,37 @@ final class Parser {
       return Unary(operator: op, right: right)
     }
 
-    return try primary()
+    return try call()
+  }
+
+  private func call() throws -> Expr {
+    var expr = try primary()
+
+    while true { 
+      if match(.leftParen) {
+        expr = try finishCall(expr)
+      } else {
+        break
+      }
+    }
+
+    return expr
+  }
+
+  private func finishCall(_ callee: Expr) throws -> Expr {
+    var arguments: [Expr] = []
+
+    if check(.rightParen) == false {
+      repeat {
+        if arguments.count >= 255 {
+          error(token: peek(), message: "Can't have more than 255 arguments.")
+        }
+        try arguments.append(expression())
+      } while match(.comma)
+    }
+    let paren = try consume(.rightParen, message: "Expect ')' after arguments.")
+
+    return Call(callee: callee, paren: paren, arguments: arguments)
   }
 
   private func primary() throws -> Expr {

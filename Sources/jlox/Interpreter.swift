@@ -1,10 +1,28 @@
+import Foundation
+
 final class Interpreter: ExprVisitor, StmtVisitor {
   struct RuntimeError: Error {
     let op: Token
     let message: String
   }
 
-  private var environment = Environment()
+  private let globals: Environment
+  private var environment: Environment
+
+  init() {
+    let globals = Environment()
+    self.globals = globals
+    self.environment = globals
+
+    struct Clock: LoxCallable, CustomStringConvertible {
+      var description: String { "<native fn>" }
+      let arity = 0
+      func call(interpreter: Interpreter, arguments: [Object]) throws -> Object {
+        .number(Date().timeIntervalSince1970)
+      }
+    }
+    globals.define(name: "clock", value: .function(Clock()))
+  }
 
   func interpret(_ statements: [Stmt]) {
     do {
@@ -72,6 +90,18 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     default:
       fatalError("Unsupported binary operator: \(expr.operator)")
     }
+  }
+
+  func visitCallExpr(_ expr: Call) throws -> Object {
+    let callee = try evaluate(expr.callee)
+    let arguments = try expr.arguments.map(evaluate(_:))
+    guard case .function(let loxFunction) = callee else {
+      throw RuntimeError(op: expr.paren, message: "Can only call functions and classes.")
+    }
+    guard arguments.count == loxFunction.arity else {
+      throw RuntimeError(op: expr.paren, message: "Expected \(loxFunction.arity) arguments but got \(arguments.count).")
+    }
+    return try loxFunction.call(interpreter: self, arguments: arguments)
   }
 
   func visitGroupingExpr(_ expr: Grouping) throws -> Object {

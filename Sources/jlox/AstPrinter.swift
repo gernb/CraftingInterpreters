@@ -11,6 +11,10 @@ struct AstPrinter: ExprVisitor {
     parenthesize(name: expr.operator.lexeme, exprs: expr.left, expr.right)
   }
 
+  func visitCallExpr(_ expr: Call) throws -> String {
+    parenthesize(name: "call", exprs: expr.callee)
+  }
+
   func visitGroupingExpr(_ expr: Grouping) -> String {
     parenthesize(name: "group", exprs: expr.expression)
   }

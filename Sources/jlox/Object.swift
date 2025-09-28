@@ -1,8 +1,20 @@
-enum Object: Equatable {
+enum Object {
   case `nil`
   case boolean(Bool)
   case number(Double)
   case string(String)
+  case function(LoxCallable)
+}
+extension Object: Equatable {
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    switch (lhs, rhs) {
+    case (.nil, .nil): true
+    case let (.boolean(l), .boolean(r)): l == r
+    case let (.number(l), .number(r)): l == r
+    case let (.string(l), .string(r)): l == r
+    default: false
+    }
+  }
 }
 
 extension Object: CustomStringConvertible {
@@ -12,6 +24,7 @@ extension Object: CustomStringConvertible {
     case .boolean(let value): "\(value)"
     case .number(let value): "\(value)"
     case .string(let value): "\(value)"
+    case .function(let value): "fun \(value)"
     }
   }
 }
