@@ -13,8 +13,9 @@ try defineAst(
   types: [
     "Binary   -> left: Expr, `operator`: Token, right: Expr",
     "Grouping -> expression: Expr",
-    "Literal  -> value: Object?",
+    "Literal  -> value: Object",
     "Unary    -> `operator`: Token, right: Expr",
+    "Variable -> name: Token",
   ]
 )
 try defineAst(
@@ -24,6 +25,7 @@ try defineAst(
   types: [
     "Expression -> expression: Expr.Expr",
     "Print      -> expression: Expr.Expr",
+    "Var        -> name: Token, initializer: Expr.Expr?",
   ]
 )
 

@@ -48,7 +48,6 @@ final class Scanner {
   private func scanToken() {
     let c = advance()
     switch c {
-
     case "(": addToken(.leftParen)
     case ")": addToken(.rightParen)
     case "{": addToken(.leftBrace)
@@ -142,7 +141,7 @@ final class Scanner {
     if let type = Self.keywords[text] {
       addToken(type)
     } else {
-      addToken(.identifier(text))
+      addToken(.identifier)
     }
   }
 
@@ -162,7 +161,7 @@ final class Scanner {
   }
 
   private func match(_ expected: Character) -> Bool {
-    guard isAtEnd != false else { return false }
+    guard isAtEnd == false else { return false }
 
     if source[current] == expected {
       current = source.index(after: current)

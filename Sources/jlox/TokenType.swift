@@ -10,7 +10,7 @@ enum TokenType: Equatable {
   case less, lessEqual
 
   // Literals.
-  case identifier(String), string(String), number(Double)
+  case identifier, string(String), number(Double)
 
   // Keywords.
   case and, `class`, `else`, `false`, fun, `for`, `if`, `nil`, or
@@ -22,13 +22,13 @@ enum TokenType: Equatable {
     switch self {
     case .string(let value): .string(value)
     case .number(let value): .number(value)
+    case .nil: .nil
     default: nil
     }
   }
 
   func sameType(as other: Self) -> Bool {
     switch (self, other) {
-    case (.identifier, .identifier): true
     case (.string, .string): true
     case (.number, .number): true
     default: self == other

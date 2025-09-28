@@ -1,4 +1,5 @@
 enum Object: Equatable {
+  case `nil`
   case boolean(Bool)
   case number(Double)
   case string(String)
@@ -7,6 +8,7 @@ enum Object: Equatable {
 extension Object: CustomStringConvertible {
   var description: String {
     switch self {
+    case .nil: "nil"
     case .boolean(let value): "\(value)"
     case .number(let value): "\(value)"
     case .string(let value): "\(value)"
@@ -14,17 +16,10 @@ extension Object: CustomStringConvertible {
   }
 }
 
-extension Object {
-  var literal: Expr.Literal {
-    switch self {
-    case .boolean(let value): Expr.Literal(value)
-    case .number(let value): Expr.Literal(value)
-    case .string(let value): Expr.Literal(value)
-    }
-  }
-}
-
 extension Expr.Literal {
+  init(_ value: Object?) {
+    self.init(value: value ?? .nil)
+  }
   init(_ value: Bool) {
     self.init(value: .boolean(value))
   }

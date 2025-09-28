@@ -4,6 +4,8 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     let message: String
   }
 
+  private let environment = Environment()
+
   func interpret(_ statements: [Stmt.Stmt]) {
     do {
       for statement in statements {
@@ -16,7 +18,7 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
-  func visitBinaryExpr(_ expr: Expr.Binary) throws -> Object? {
+  func visitBinaryExpr(_ expr: Expr.Binary) throws -> Object {
     let left = try evaluate(expr.left)
     let right = try evaluate(expr.right)
 
@@ -66,15 +68,15 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
-  func visitGroupingExpr(_ expr: Expr.Grouping) throws -> Object? {
+  func visitGroupingExpr(_ expr: Expr.Grouping) throws -> Object {
     try evaluate(expr.expression)
   }
 
-  func visitLiteralExpr(_ expr: Expr.Literal) throws -> Object? {
+  func visitLiteralExpr(_ expr: Expr.Literal) throws -> Object {
     expr.value
   }
 
-  func visitUnaryExpr(_ expr: Expr.Unary) throws -> Object? {
+  func visitUnaryExpr(_ expr: Expr.Unary) throws -> Object {
     let right = try evaluate(expr.right)
 
     switch expr.operator.type {
@@ -88,6 +90,10 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
+  func visitVariableExpr(_ expr: Expr.Variable) throws -> Object {
+    try environment.get(expr.name)
+  }
+
   func visitExpressionStmt(_ stmt: Stmt.Expression) throws {
     try evaluate(stmt.expression)
   }
@@ -97,8 +103,17 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     print(stringify(value))
   }
 
+  func visitVarStmt(_ stmt: Stmt.Var) throws {
+    let value = if let initializer = stmt.initializer {
+      try evaluate(initializer)
+    } else {
+      Object.nil
+    }
+    environment.define(name: stmt.name.lexeme, value: value)
+  }
+
   @discardableResult
-  private func evaluate(_ expr: Expr.Expr) throws -> Object? {
+  private func evaluate(_ expr: Expr.Expr) throws -> Object {
     try expr.accept(self)
   }
 
@@ -106,24 +121,21 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     try stmt.accept(self)
   }
 
-  private func isTruthy(_ object: Object?) -> Bool {
+  private func isTruthy(_ object: Object) -> Bool {
     switch object {
-    case .none, .boolean(false): false
+    case .nil, .boolean(false): false
     default: true
     }
   }
 
-  private func getNumberOperand(op: Token, operand: Object?) throws -> Double {
+  private func getNumberOperand(op: Token, operand: Object) throws -> Double {
     guard case .number(let value) = operand else {
       throw RuntimeError(op: op, message: "Operand must be a number.")
     }
     return value
   }
 
-  private func stringify(_ object: Object?) -> String {
-    guard let object else {
-      return "nil"
-    }
+  private func stringify(_ object: Object) -> String {
     let text = object.description
     if case .number = object, text.hasSuffix(".0") {
       return String(text.dropLast(2))

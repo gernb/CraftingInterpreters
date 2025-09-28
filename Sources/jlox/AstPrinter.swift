@@ -19,6 +19,10 @@ struct AstPrinter: Expr.Visitor {
     parenthesize(name: expr.operator.lexeme, exprs: expr.right)
   }
 
+  func visitVariableExpr(_ expr: Expr.Variable) -> String {
+    "(var \(expr.name.lexeme))"
+  }
+
   private func parenthesize(name: String, exprs: Expr.Expr...) -> String {
     var result = "("
     result.append(name)

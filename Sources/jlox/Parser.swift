@@ -1,12 +1,15 @@
 /*
-program        → statement* EOF ;
+program        → declaration* EOF ;
+
+declaration    → varDecl
+               | statement ;
+
+varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
                | printStmt ;
-
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
-
 
 expression     → equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -15,9 +18,10 @@ term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary
                | primary ;
-primary        → NUMBER | STRING | "true" | "false" | "nil"
-               | "(" expression ")" ;
-*/
+primary        → "true" | "false" | "nil"
+               | NUMBER | STRING
+               | "(" expression ")"
+               | IDENTIFIER ;*/
 
 final class Parser {
   private struct ParseError: Error {}
@@ -32,10 +36,29 @@ final class Parser {
   func parse() -> [Stmt.Stmt] {
     var statements: [Stmt.Stmt] = []
     while isAtEnd() == false {
-      try! statements.append(statement())
+      guard let statement = declaration() else { continue }
+      statements.append(statement)
     }
-
     return statements
+  }
+
+  private func declaration() -> Stmt.Stmt? {
+    do {
+      if match(.var) {
+        return try varDeclaration()
+      }
+      return try statement()
+    } catch {
+      synchronize()
+      return nil
+    }
+  }
+
+  private func varDeclaration() throws -> Stmt.Stmt {
+    let name = try consume(.identifier, message: "Expect variable name.")
+    let initializer = match(.equal) ? try expression() : nil
+    try consume(.semicolon, message: "Expect ';' after variable declaration.")
+    return Stmt.Var(name: name, initializer: initializer)
   }
 
   private func statement() throws -> Stmt.Stmt {
@@ -95,11 +118,15 @@ final class Parser {
       return Expr.Literal(true)
     }
     if match(.nil) {
-      return Expr.Literal(value: nil)
+      return Expr.Literal(.nil)
     }
 
     if match(.number(0), .string("")) {
-      return previous().type.value?.literal ?? Expr.Literal(value: nil)
+      return Expr.Literal(previous().type.value)
+    }
+
+    if match(.identifier) {
+      return Expr.Variable(name: previous())
     }
 
     if match(.leftParen) {
