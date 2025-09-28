@@ -16,7 +16,7 @@ extension Object: CustomStringConvertible {
   }
 }
 
-extension Expr.Literal {
+extension Literal {
   init(_ value: Object?) {
     self.init(value: value ?? .nil)
   }

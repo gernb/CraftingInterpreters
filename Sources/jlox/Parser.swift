@@ -7,15 +7,20 @@ declaration    → varDecl
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
+               | ifStmt
                | printStmt
                | block ;
 exprStmt       → expression ";" ;
+ifStmt         → "if" "(" expression ")" statement
+               ( "else" statement )? ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 
 expression     → assignment ;
 assignment     → IDENTIFIER "=" assignment
-               | equality ;
+               | logic_or ;
+logic_or       → logic_and ( "or" logic_and )* ;
+logic_and      → equality ( "and" equality )* ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -38,8 +43,8 @@ final class Parser {
     self.tokens = tokens
   }
 
-  func parse() -> [Stmt.Stmt] {
-    var statements: [Stmt.Stmt] = []
+  func parse() -> [Stmt] {
+    var statements: [Stmt] = []
     while isAtEnd() == false {
       guard let statement = declaration() else { continue }
       statements.append(statement)
@@ -47,7 +52,7 @@ final class Parser {
     return statements
   }
 
-  private func declaration() -> Stmt.Stmt? {
+  private func declaration() -> Stmt? {
     do {
       if match(.var) {
         return try varDeclaration()
@@ -59,31 +64,43 @@ final class Parser {
     }
   }
 
-  private func varDeclaration() throws -> Stmt.Stmt {
+  private func varDeclaration() throws -> Stmt {
     let name = try consume(.identifier, message: "Expect variable name.")
     let initializer = match(.equal) ? try expression() : nil
     try consume(.semicolon, message: "Expect ';' after variable declaration.")
-    return Stmt.Var(name: name, initializer: initializer)
+    return Var(name: name, initializer: initializer)
   }
 
-  private func statement() throws -> Stmt.Stmt {
+  private func statement() throws -> Stmt {
+    if match(.if) {
+      return try ifStatement()
+    }
     if match(.print) {
       return try printStatement()
     }
     if match(.leftBrace) {
-      return try Stmt.Block(statements: block())
+      return try Block(statements: block())
     }
     return try expressionStatement()
   }
 
-  private func printStatement() throws -> Stmt.Stmt {
-    let value = try expression()
-    try consume(.semicolon, message: "Expect ';' after value.")
-    return Stmt.Print(expression: value)
+  private func ifStatement() throws -> Stmt {
+    try consume(.leftParen, message: "Expect '(' after 'if'.")
+    let condition = try expression()
+    try consume(.rightParen, message: "Expect ')' after if condition.")
+    let thenBranch = try statement()
+    let elseBranch = match(.else) ? try statement() : nil
+    return If(condition: condition, thenBranch: thenBranch, elseBranch: elseBranch)
   }
 
-  private func block() throws -> [Stmt.Stmt] {
-    var statements: [Stmt.Stmt] = []
+  private func printStatement() throws -> Stmt {
+    let value = try expression()
+    try consume(.semicolon, message: "Expect ';' after value.")
+    return Print(expression: value)
+  }
+
+  private func block() throws -> [Stmt] {
+    var statements: [Stmt] = []
     while check(.rightBrace) == false && isAtEnd() == false {
       guard let statement = declaration() else { continue }
       statements.append(statement)
@@ -92,26 +109,26 @@ final class Parser {
     return statements
   }
 
-  private func expressionStatement() throws -> Stmt.Stmt {
+  private func expressionStatement() throws -> Stmt {
     let expr = try expression()
     try consume(.semicolon, message: "Expect ';' after expression.")
-    return Stmt.Expression(expression: expr)
+    return Expression(expression: expr)
   }
 
-  private func expression() throws -> Expr.Expr {
+  private func expression() throws -> Expr {
     try assignment()
   }
 
-  private func assignment() throws -> Expr.Expr {
-    let expr = try equality()
+  private func assignment() throws -> Expr {
+    let expr = try or()
 
     if match(.equal) {
       let equals = previous()
       let value = try assignment()
 
-      if let variable = expr as? Expr.Variable {
+      if let variable = expr as? Variable {
         let name = variable.name
-        return Expr.Assign(name: name, value: value)
+        return Assign(name: name, value: value)
       }
 
       error(token: equals, message: "Invalid assignment target.")
@@ -120,67 +137,91 @@ final class Parser {
     return expr
   }
 
-  private func equality() throws -> Expr.Expr {
+  private func or() throws -> Expr {
+    var expr = try and()
+
+    while match(.or) {
+      let op = previous()
+      let right = try and()
+      expr = Logical(left: expr, operator: op, right: right)
+    }
+
+    return expr
+  }
+
+  private func and() throws -> Expr {
+    var expr = try equality()
+
+    while match(.and) {
+      let op = previous()
+      let right = try equality()
+      expr = Logical(left: expr, operator: op, right: right)
+    }
+
+    return expr
+  }
+
+  private func equality() throws -> Expr {
     try binaryLeftAssociative(expression: comparison, matching: .bangEqual, .equalEqual)
   }
 
-  private func comparison() throws -> Expr.Expr {
+  private func comparison() throws -> Expr {
     try binaryLeftAssociative(expression: term, matching: .greater, .greaterEqual, .less, .lessEqual)
   }
 
-  private func term() throws -> Expr.Expr {
+  private func term() throws -> Expr {
     try binaryLeftAssociative(expression: factor, matching: .minus, .plus)
   }
 
-  private func factor() throws -> Expr.Expr {
+  private func factor() throws -> Expr {
     try binaryLeftAssociative(expression: unary, matching: .slash, .star)
   }
 
-  private func unary() throws -> Expr.Expr {
+  private func unary() throws -> Expr {
     if match(.bang, .minus) {
       let op = previous()
       let right = try unary()
-      return Expr.Unary(operator: op, right: right)
+      return Unary(operator: op, right: right)
     }
 
     return try primary()
   }
 
-  private func primary() throws -> Expr.Expr {
+  private func primary() throws -> Expr {
     if match(.false) {
-      return Expr.Literal(false)
+      return Literal(false)
     }
     if match(.true) {
-      return Expr.Literal(true)
+      return Literal(true)
     }
     if match(.nil) {
-      return Expr.Literal(.nil)
+      return Literal(.nil)
     }
 
     if match(.number(0), .string("")) {
-      return Expr.Literal(previous().type.value)
+      return Literal(previous().type.value)
     }
 
     if match(.identifier) {
-      return Expr.Variable(name: previous())
+      return Variable(name: previous())
     }
 
     if match(.leftParen) {
       let expr = try expression()
       try consume(.rightParen, message: "Expect ')' after expression.")
-      return Expr.Grouping(expression: expr)
+      return Grouping(expression: expr)
     }
 
     throw error(token: peek(), message: "Expect expression.")
   }
 
-  private func binaryLeftAssociative(expression: () throws -> Expr.Expr, matching types: TokenType...) rethrows -> Expr.Expr {
+  private func binaryLeftAssociative(expression: () throws -> Expr, matching types: TokenType...) rethrows -> Expr {
     var expr = try expression()
 
     while match(types) {
       let op = previous()
       let right = try expression()
-      expr = Expr.Binary(left: expr, operator: op, right: right)
+      expr = Binary(left: expr, operator: op, right: right)
     }
 
     return expr

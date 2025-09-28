@@ -1,4 +1,4 @@
-final class Interpreter: Expr.Visitor, Stmt.Visitor {
+final class Interpreter: ExprVisitor, StmtVisitor {
   struct RuntimeError: Error {
     let op: Token
     let message: String
@@ -6,7 +6,7 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
 
   private var environment = Environment()
 
-  func interpret(_ statements: [Stmt.Stmt]) {
+  func interpret(_ statements: [Stmt]) {
     do {
       for statement in statements {
         try execute(statement)
@@ -18,13 +18,13 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
-  func visitAssignExpr(_ expr: Expr.Assign) throws -> Object {
+  func visitAssignExpr(_ expr: Assign) throws -> Object {
     let value = try evaluate(expr.value)
     try environment.assign(name: expr.name, value: value)
     return value
   }
 
-  func visitBinaryExpr(_ expr: Expr.Binary) throws -> Object {
+  func visitBinaryExpr(_ expr: Binary) throws -> Object {
     let left = try evaluate(expr.left)
     let right = try evaluate(expr.right)
 
@@ -74,15 +74,31 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
-  func visitGroupingExpr(_ expr: Expr.Grouping) throws -> Object {
+  func visitGroupingExpr(_ expr: Grouping) throws -> Object {
     try evaluate(expr.expression)
   }
 
-  func visitLiteralExpr(_ expr: Expr.Literal) throws -> Object {
+  func visitLiteralExpr(_ expr: Literal) throws -> Object {
     expr.value
   }
 
-  func visitUnaryExpr(_ expr: Expr.Unary) throws -> Object {
+  func visitLogicalExpr(_ expr: Logical) throws -> Object {
+    let left = try evaluate(expr.left)
+
+    if expr.operator.type == .or {
+      if isTruthy(left) {
+        return left
+      }
+    } else {
+      if isTruthy(left) == false {
+        return left
+      }
+    }
+
+    return try evaluate(expr.right)
+  }
+
+  func visitUnaryExpr(_ expr: Unary) throws -> Object {
     let right = try evaluate(expr.right)
 
     switch expr.operator.type {
@@ -96,24 +112,32 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     }
   }
 
-  func visitVariableExpr(_ expr: Expr.Variable) throws -> Object {
+  func visitVariableExpr(_ expr: Variable) throws -> Object {
     try environment.get(expr.name)
   }
 
-  func visitBlockStmt(_ stmt: Stmt.Block) throws {
+  func visitBlockStmt(_ stmt: Block) throws {
     try executeBlock(stmt.statements, environment: .init(enclosing: environment))
   }
 
-  func visitExpressionStmt(_ stmt: Stmt.Expression) throws {
+  func visitExpressionStmt(_ stmt: Expression) throws {
     try evaluate(stmt.expression)
   }
 
-  func visitPrintStmt(_ stmt: Stmt.Print) throws {
+  func visitIfStmt(_ stmt: If) throws {
+    if isTruthy(try evaluate(stmt.condition)) {
+      try execute(stmt.thenBranch)
+    } else if let elseBranch = stmt.elseBranch {
+      try execute(elseBranch)
+    }
+  }
+
+  func visitPrintStmt(_ stmt: Print) throws {
     let value = try evaluate(stmt.expression)
     print(stringify(value))
   }
 
-  func visitVarStmt(_ stmt: Stmt.Var) throws {
+  func visitVarStmt(_ stmt: Var) throws {
     let value = if let initializer = stmt.initializer {
       try evaluate(initializer)
     } else {
@@ -123,15 +147,15 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
   }
 
   @discardableResult
-  private func evaluate(_ expr: Expr.Expr) throws -> Object {
+  private func evaluate(_ expr: Expr) throws -> Object {
     try expr.accept(self)
   }
 
-  private func execute(_ stmt: Stmt.Stmt) throws {
+  private func execute(_ stmt: Stmt) throws {
     try stmt.accept(self)
   }
 
-  private func executeBlock(_ statements: [Stmt.Stmt], environment: Environment) throws {
+  private func executeBlock(_ statements: [Stmt], environment: Environment) throws {
     let previous = self.environment
     defer {
       self.environment = previous
