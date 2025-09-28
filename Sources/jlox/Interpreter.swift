@@ -146,6 +146,12 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     environment.define(name: stmt.name.lexeme, value: value)
   }
 
+  func visitWhileStmt(_ stmt: While) throws {
+    while isTruthy(try evaluate(stmt.condition)) {
+      try execute(stmt.body)
+    }
+  }
+
   @discardableResult
   private func evaluate(_ expr: Expr) throws -> Object {
     try expr.accept(self)

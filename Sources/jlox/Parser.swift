@@ -7,13 +7,19 @@ declaration    → varDecl
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
+               | forStmt
                | ifStmt
                | printStmt
+               | whileStmt
                | block ;
 exprStmt       → expression ";" ;
+forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
+                 expression? ";"
+                 expression? ")" statement ;
 ifStmt         → "if" "(" expression ")" statement
                ( "else" statement )? ;
 printStmt      → "print" expression ";" ;
+whileStmt      → "while" "(" expression ")" statement ;
 block          → "{" declaration* "}" ;
 
 expression     → assignment ;
@@ -72,16 +78,52 @@ final class Parser {
   }
 
   private func statement() throws -> Stmt {
+    if match(.for) {
+      return try forStatement()
+    }
     if match(.if) {
       return try ifStatement()
     }
     if match(.print) {
       return try printStatement()
     }
+    if match(.while) {
+      return try whileStatement()
+    }
     if match(.leftBrace) {
       return try Block(statements: block())
     }
     return try expressionStatement()
+  }
+
+  private func forStatement() throws -> Stmt {
+    try consume(.leftParen, message: "Expect '(' after 'for'.")
+
+    let initializer: Stmt? = if match(.semicolon) {
+      nil
+    } else if match(.var) {
+      try varDeclaration()
+    } else {
+      try expressionStatement()
+    }
+    let condition = check(.semicolon) ? nil : try expression()
+    try consume(.semicolon, message: "Expect ';' after loop condition.")
+    let increment = check(.rightParen) ? nil : try expression()
+    try consume(.rightParen, message: "Expect ')' after for clauses.")
+    var body = try statement()
+
+    if let increment {
+      body = Block(statements: [body, Expression(expression: increment)])
+    }
+    body = While(
+      condition: condition == nil ? Literal(true) : condition!,
+      body: body
+    )
+    if let initializer {
+      body = Block(statements: [initializer, body])
+    }
+
+    return body
   }
 
   private func ifStatement() throws -> Stmt {
@@ -97,6 +139,14 @@ final class Parser {
     let value = try expression()
     try consume(.semicolon, message: "Expect ';' after value.")
     return Print(expression: value)
+  }
+
+  private func whileStatement() throws -> Stmt {
+    try consume(.leftParen, message: "Expect '(' after 'while'.")
+    let condition = try expression()
+    try consume(.rightParen, message: "Expect ')' after condition.")
+    let body = try statement()
+    return While(condition: condition, body: body)
   }
 
   private func block() throws -> [Stmt] {
