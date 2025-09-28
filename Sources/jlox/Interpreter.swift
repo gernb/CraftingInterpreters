@@ -1,13 +1,14 @@
-final class Interpreter: Visitor {
+final class Interpreter: Expr.Visitor, Stmt.Visitor {
   struct RuntimeError: Error {
     let op: Token
     let message: String
   }
 
-  func interpret(expression: Expr) { 
+  func interpret(_ statements: [Stmt.Stmt]) {
     do {
-      let value = try evaluate(expression)
-      print(stringify(value))
+      for statement in statements {
+        try execute(statement)
+      }
     } catch let error as RuntimeError {
       Lox.runtimeError(error)
     } catch {
@@ -15,7 +16,7 @@ final class Interpreter: Visitor {
     }
   }
 
-  func visitBinaryExpr(_ expr: Binary) throws -> Object? {
+  func visitBinaryExpr(_ expr: Expr.Binary) throws -> Object? {
     let left = try evaluate(expr.left)
     let right = try evaluate(expr.right)
 
@@ -65,15 +66,15 @@ final class Interpreter: Visitor {
     }
   }
 
-  func visitGroupingExpr(_ expr: Grouping) throws -> Object? {
+  func visitGroupingExpr(_ expr: Expr.Grouping) throws -> Object? {
     try evaluate(expr.expression)
   }
 
-  func visitLiteralExpr(_ expr: Literal) throws -> Object? {
+  func visitLiteralExpr(_ expr: Expr.Literal) throws -> Object? {
     expr.value
   }
 
-  func visitUnaryExpr(_ expr: Unary) throws -> Object? {
+  func visitUnaryExpr(_ expr: Expr.Unary) throws -> Object? {
     let right = try evaluate(expr.right)
 
     switch expr.operator.type {
@@ -87,8 +88,22 @@ final class Interpreter: Visitor {
     }
   }
 
-  private func evaluate(_ expr: Expr) throws -> Object? {
+  func visitExpressionStmt(_ stmt: Stmt.Expression) throws {
+    try evaluate(stmt.expression)
+  }
+
+  func visitPrintStmt(_ stmt: Stmt.Print) throws {
+    let value = try evaluate(stmt.expression)
+    print(stringify(value))
+  }
+
+  @discardableResult
+  private func evaluate(_ expr: Expr.Expr) throws -> Object? {
     try expr.accept(self)
+  }
+
+  private func execute(_ stmt: Stmt.Stmt) throws {
+    try stmt.accept(self)
   }
 
   private func isTruthy(_ object: Object?) -> Bool {

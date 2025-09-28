@@ -9,6 +9,7 @@ let outputDir = CommandLine.arguments[1]
 try defineAst(
   outputDir: outputDir,
   baseName: "Expr",
+  visitorGeneric: "R",
   types: [
     "Binary   -> left: Expr, `operator`: Token, right: Expr",
     "Grouping -> expression: Expr",
@@ -16,70 +17,71 @@ try defineAst(
     "Unary    -> `operator`: Token, right: Expr",
   ]
 )
+try defineAst(
+  outputDir: outputDir,
+  baseName: "Stmt",
+  visitorGeneric: "S",
+  types: [
+    "Expression -> expression: Expr.Expr",
+    "Print      -> expression: Expr.Expr",
+  ]
+)
 
-func defineAst(outputDir: String, baseName: String, types: [String]) throws {
+func defineAst(outputDir: String, baseName: String, visitorGeneric: String, types: [String]) throws {
   let path = outputDir + "/" + baseName + ".swift"
   var lines: [String] = ["// auto-generated code; do not manually modify"]
-  lines.append(contentsOf: defineVisitor(baseName: baseName, types: types))
   lines.append("")
-  lines.append("protocol \(baseName) {")
-  lines.append("  func accept<R>(_ visitor: any Visitor<R>) throws -> R")
-  lines.append("}")
+  lines.append("enum \(baseName) {")
+  lines.append(contentsOf: defineVisitor(baseName: baseName, visitorGeneric: visitorGeneric, types: types))
+  lines.append("")
+  lines.append("  protocol \(baseName) {")
+  lines.append("    func accept<\(visitorGeneric)>(_ visitor: any Visitor<\(visitorGeneric)>) throws -> \(visitorGeneric)")
+  lines.append("  }")
 
   // The AST classes.
   for type in types {
     let className = type.components(separatedBy: "->")[0].trimmingCharacters(in: .whitespaces)
     let fields = type.components(separatedBy: "->")[1].trimmingCharacters(in: .whitespaces)
-    lines.append(contentsOf: defineType(baseName: baseName, className: className, fieldList: fields))
+    lines.append(contentsOf: defineType(baseName: baseName, visitorGeneric: visitorGeneric, className: className, fieldList: fields))
   }
+
+  lines.append("}")
 
   try lines
     .joined(separator: "\n")
     .write(toFile: path, atomically: true, encoding: .utf8)
 }
 
-func defineType(baseName: String, className: String, fieldList: String) -> [String] {
+func defineType(baseName: String, visitorGeneric: String, className: String, fieldList: String) -> [String] {
   var lines: [String] = [""]
-  lines.append("struct \(className): \(baseName) {")
-
-  // // Constructor.
-  // lines.append("  init(\(fieldList)) {")
-
-  // // Store parameters in fields.
+  lines.append("  struct \(className): \(baseName) {")
   let fields = fieldList.components(separatedBy: ", ")
-  // for field in fields {
-  //   let name = field.components(separatedBy: ": ")[0]
-  //   lines.append("    self.\(name) = \(name)")
-  // }
-
-  // lines.append("  }")
 
   // Fields.
-  // lines.append("")
   for field in fields {
-    lines.append("  let \(field)")
+    lines.append("    let \(field)")
   }
 
   // Visitor pattern.
   lines.append("")
-  lines.append("  func accept<R>(_ visitor: any Visitor<R>) throws -> R {")
-  lines.append("    try visitor.visit\(className + baseName)(self)")
-  lines.append("  }")
+  lines.append("    func accept<\(visitorGeneric)>(_ visitor: any Visitor<\(visitorGeneric)>) throws -> \(visitorGeneric) {")
+  lines.append("      try visitor.visit\(className + baseName)(self)")
+  lines.append("    }")
 
-  lines.append("}")
+  lines.append("  }")
   return lines
 }
 
-func defineVisitor(baseName: String, types: [String]) -> [String] {
-  var lines: [String] = [""]
-  lines.append("protocol Visitor<R> {")
-  lines.append("  associatedtype R")
+func defineVisitor(baseName: String, visitorGeneric: String, types: [String]) -> [String] {
+  var lines: [String] = []
+  lines.append("  protocol Visitor<\(visitorGeneric)> {")
+  lines.append("    associatedtype \(visitorGeneric)")
 
   for type in types {
     let typeName = type.components(separatedBy: "->")[0].trimmingCharacters(in: .whitespaces)
-    lines.append("  func visit\(typeName + baseName)(_ \(baseName.lowercased()): \(typeName)) throws -> R")
+    lines.append("    func visit\(typeName + baseName)(_ \(baseName.lowercased()): \(typeName)) throws -> \(visitorGeneric)")
   }
 
-  lines.append("}")
+  lines.append("  }")
   return lines
 }

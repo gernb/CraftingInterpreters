@@ -1,4 +1,13 @@
 /*
+program        → statement* EOF ;
+
+statement      → exprStmt
+               | printStmt ;
+
+exprStmt       → expression ";" ;
+printStmt      → "print" expression ";" ;
+
+
 expression     → equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -20,75 +29,95 @@ final class Parser {
     self.tokens = tokens
   }
 
-  func parse() -> Expr? {
-    do {
-      return try expression()
-    } catch {
-      return nil
+  func parse() -> [Stmt.Stmt] {
+    var statements: [Stmt.Stmt] = []
+    while isAtEnd() == false {
+      try! statements.append(statement())
     }
+
+    return statements
   }
 
-  private func expression() throws -> Expr {
+  private func statement() throws -> Stmt.Stmt {
+    if match(.print) {
+      return try printStatement()
+    }
+    return try expressionStatement()
+  }
+
+  private func printStatement() throws -> Stmt.Stmt {
+    let value = try expression()
+    try consume(.semicolon, message: "Expect ';' after value.")
+    return Stmt.Print(expression: value)
+  }
+
+  private func expressionStatement() throws -> Stmt.Stmt {
+    let expr = try expression()
+    try consume(.semicolon, message: "Expect ';' after expression.")
+    return Stmt.Expression(expression: expr)
+  }
+
+  private func expression() throws -> Expr.Expr {
     try equality()
   }
 
-  private func equality() throws -> Expr {
+  private func equality() throws -> Expr.Expr {
     try binaryLeftAssociative(expression: comparison, matching: .bangEqual, .equalEqual)
   }
 
-  private func comparison() throws -> Expr {
+  private func comparison() throws -> Expr.Expr {
     try binaryLeftAssociative(expression: term, matching: .greater, .greaterEqual, .less, .lessEqual)
   }
 
-  private func term() throws -> Expr {
+  private func term() throws -> Expr.Expr {
     try binaryLeftAssociative(expression: factor, matching: .minus, .plus)
   }
 
-  private func factor() throws -> Expr {
+  private func factor() throws -> Expr.Expr {
     try binaryLeftAssociative(expression: unary, matching: .slash, .star)
   }
 
-  private func unary() throws -> Expr {
+  private func unary() throws -> Expr.Expr {
     if match(.bang, .minus) {
       let op = previous()
       let right = try unary()
-      return Unary(operator: op, right: right)
+      return Expr.Unary(operator: op, right: right)
     }
 
     return try primary()
   }
 
-  private func primary() throws -> Expr {
+  private func primary() throws -> Expr.Expr {
     if match(.false) {
-      return Literal(false)
+      return Expr.Literal(false)
     }
     if match(.true) {
-      return Literal(true)
+      return Expr.Literal(true)
     }
     if match(.nil) {
-      return Literal(value: nil)
+      return Expr.Literal(value: nil)
     }
 
     if match(.number(0), .string("")) {
-      return previous().type.value?.literal ?? Literal(value: nil)
+      return previous().type.value?.literal ?? Expr.Literal(value: nil)
     }
 
     if match(.leftParen) {
       let expr = try expression()
       try consume(.rightParen, message: "Expect ')' after expression.")
-      return Grouping(expression: expr)
+      return Expr.Grouping(expression: expr)
     }
 
     throw error(token: peek(), message: "Expect expression.")
   }
 
-  private func binaryLeftAssociative(expression: () throws -> Expr, matching types: TokenType...) rethrows -> Expr {
+  private func binaryLeftAssociative(expression: () throws -> Expr.Expr, matching types: TokenType...) rethrows -> Expr.Expr {
     var expr = try expression()
 
     while match(types) {
       let op = previous()
       let right = try expression()
-      expr = Binary(left: expr, operator: op, right: right)
+      expr = Expr.Binary(left: expr, operator: op, right: right)
     }
 
     return expr

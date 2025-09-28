@@ -48,15 +48,12 @@ struct Lox {
     let scanner = Scanner(source: source)
     let tokens = scanner.scanTokens()
     let parser = Parser(tokens: tokens)
+    let statements = parser.parse()
 
-    guard let expression = parser.parse() else {
-      // Stop if there was a syntax error.
-      assert(hadError)
-      return
-    }
-    assert(hadError == false)
+	  // Stop if there was a syntax error.
+    if hadError { return }
 
-    interpreter.interpret(expression: expression)
+    interpreter.interpret(statements)
   }
 
   static func error(line: Int, message: String) {

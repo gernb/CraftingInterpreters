@@ -15,16 +15,16 @@ extension Object: CustomStringConvertible {
 }
 
 extension Object {
-  var literal: Literal {
+  var literal: Expr.Literal {
     switch self {
-    case .boolean(let value): Literal(value)
-    case .number(let value): Literal(value)
-    case .string(let value): Literal(value)
+    case .boolean(let value): Expr.Literal(value)
+    case .number(let value): Expr.Literal(value)
+    case .string(let value): Expr.Literal(value)
     }
   }
 }
 
-extension Literal {
+extension Expr.Literal {
   init(_ value: Bool) {
     self.init(value: .boolean(value))
   }

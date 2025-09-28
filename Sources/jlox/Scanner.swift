@@ -71,7 +71,7 @@ final class Scanner {
           advance()
         }
       } else {
-        addToken(.slash);
+        addToken(.slash)
       }
 
     case " ", "\r", "\t":
