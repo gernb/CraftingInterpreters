@@ -7,9 +7,11 @@ declaration    → varDecl
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
-               | printStmt ;
+               | printStmt
+               | block ;
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
+block          → "{" declaration* "}" ;
 
 expression     → assignment ;
 assignment     → IDENTIFIER "=" assignment
@@ -68,6 +70,9 @@ final class Parser {
     if match(.print) {
       return try printStatement()
     }
+    if match(.leftBrace) {
+      return try Stmt.Block(statements: block())
+    }
     return try expressionStatement()
   }
 
@@ -75,6 +80,16 @@ final class Parser {
     let value = try expression()
     try consume(.semicolon, message: "Expect ';' after value.")
     return Stmt.Print(expression: value)
+  }
+
+  private func block() throws -> [Stmt.Stmt] {
+    var statements: [Stmt.Stmt] = []
+    while check(.rightBrace) == false && isAtEnd() == false {
+      guard let statement = declaration() else { continue }
+      statements.append(statement)
+    }
+    try consume(.rightBrace, message: "Expect '}' after block.")
+    return statements
   }
 
   private func expressionStatement() throws -> Stmt.Stmt {

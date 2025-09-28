@@ -4,7 +4,7 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     let message: String
   }
 
-  private let environment = Environment()
+  private var environment = Environment()
 
   func interpret(_ statements: [Stmt.Stmt]) {
     do {
@@ -100,6 +100,10 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
     try environment.get(expr.name)
   }
 
+  func visitBlockStmt(_ stmt: Stmt.Block) throws {
+    try executeBlock(stmt.statements, environment: .init(enclosing: environment))
+  }
+
   func visitExpressionStmt(_ stmt: Stmt.Expression) throws {
     try evaluate(stmt.expression)
   }
@@ -125,6 +129,17 @@ final class Interpreter: Expr.Visitor, Stmt.Visitor {
 
   private func execute(_ stmt: Stmt.Stmt) throws {
     try stmt.accept(self)
+  }
+
+  private func executeBlock(_ statements: [Stmt.Stmt], environment: Environment) throws {
+    let previous = self.environment
+    defer {
+      self.environment = previous
+    }
+    self.environment = environment
+    for statement in statements {
+      try execute(statement)
+    }
   }
 
   private func isTruthy(_ object: Object) -> Bool {
