@@ -41,6 +41,8 @@ func defineAst(outputDir: String, baseName: String, types: [String]) throws {
   lines.append(contentsOf: defineVisitor(baseName: baseName, types: types))
   lines.append("")
   lines.append("protocol \(baseName) {")
+  lines.append("  typealias ID = Int")
+  lines.append("  var id: ID { get }")
   lines.append("  func accept<R>(_ visitor: any \(baseName)Visitor<R>) throws -> R")
   lines.append("}")
 
@@ -59,6 +61,7 @@ func defineAst(outputDir: String, baseName: String, types: [String]) throws {
 func defineType(baseName: String, className: String, fieldList: String) -> [String] {
   var lines: [String] = [""]
   lines.append("struct \(className): \(baseName) {")
+  lines.append("  let id: ID")
   let fields = fieldList.components(separatedBy: ", ")
 
   // Fields.

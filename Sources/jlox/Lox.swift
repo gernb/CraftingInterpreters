@@ -6,14 +6,19 @@ struct Lox {
   static nonisolated(unsafe) private var hadError = false
   static nonisolated(unsafe) private var hadRuntimeError = false
 
-  static func main() throws {
+  static func main() {
     if CommandLine.arguments.count > 2 {
       print("Usage: jlox [script]")
       // For exit codes, I’m using the conventions defined in the UNIX “sysexits.h” header.
       // It’s the closest thing to a standard I could find.
       exit(64)
     } else if CommandLine.arguments.count == 2 {
-      try runFile(CommandLine.arguments[1])
+      do {
+        try runFile(CommandLine.arguments[1])
+      } catch {
+        print(String(describing: error))
+        exit(66)
+      }
     } else {
       runPrompt()
     }
@@ -53,6 +58,11 @@ struct Lox {
 	  // Stop if there was a syntax error.
     if hadError { return }
 
+    let resolver = Resolver(using: interpreter)
+    try! resolver.resolve(statements)
+    // Stop if there was a resolution error.
+    if hadError { return }
+  
     interpreter.interpret(statements)
   }
 

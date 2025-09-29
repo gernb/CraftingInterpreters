@@ -55,6 +55,13 @@ final class Parser {
   private let tokens: [Token]
   private var current = 0
 
+  // An auto-incrementing id generator
+  private var _id = 0
+  private var id: Int {
+    defer { _id += 1 }
+    return _id
+  }
+
   init(tokens: [Token]) {
     self.tokens = tokens
   }
@@ -99,14 +106,14 @@ final class Parser {
     try consume(.rightParen, message: "Expect ')' after parameters.")
     try consume(.leftBrace, message: "Expect '{' before \(kind) body.")
     let body = try block()
-    return Function(name: name, params: parameters, body: body)
+    return Function(id: id, name: name, params: parameters, body: body)
   }
 
   private func varDeclaration() throws -> Stmt {
     let name = try consume(.identifier, message: "Expect variable name.")
     let initializer = match(.equal) ? try expression() : nil
     try consume(.semicolon, message: "Expect ';' after variable declaration.")
-    return Var(name: name, initializer: initializer)
+    return Var(id: id, name: name, initializer: initializer)
   }
 
   private func statement() throws -> Stmt {
@@ -126,7 +133,7 @@ final class Parser {
       return try whileStatement()
     }
     if match(.leftBrace) {
-      return try Block(statements: block())
+      return try Block(id: id, statements: block())
     }
     return try expressionStatement()
   }
@@ -148,14 +155,15 @@ final class Parser {
     var body = try statement()
 
     if let increment {
-      body = Block(statements: [body, Expression(expression: increment)])
+      body = Block(id: id, statements: [body, Expression(id: id, expression: increment)])
     }
     body = While(
-      condition: condition == nil ? Literal(true) : condition!,
+      id: id,
+      condition: condition == nil ? Literal(true, id: id) : condition!,
       body: body
     )
     if let initializer {
-      body = Block(statements: [initializer, body])
+      body = Block(id: id, statements: [initializer, body])
     }
 
     return body
@@ -167,20 +175,20 @@ final class Parser {
     try consume(.rightParen, message: "Expect ')' after if condition.")
     let thenBranch = try statement()
     let elseBranch = match(.else) ? try statement() : nil
-    return If(condition: condition, thenBranch: thenBranch, elseBranch: elseBranch)
+    return If(id: id, condition: condition, thenBranch: thenBranch, elseBranch: elseBranch)
   }
 
   private func printStatement() throws -> Stmt {
     let value = try expression()
     try consume(.semicolon, message: "Expect ';' after value.")
-    return Print(expression: value)
+    return Print(id: id, expression: value)
   }
 
   private func returnStatement() throws -> Stmt {
     let keyword = previous()
     let value = check(.semicolon) ? nil : try expression()
     try consume(.semicolon, message: "Expect ';' after return value.")
-    return Return(keyword: keyword, value: value)
+    return Return(id: id, keyword: keyword, value: value)
   }
 
   private func whileStatement() throws -> Stmt {
@@ -188,7 +196,7 @@ final class Parser {
     let condition = try expression()
     try consume(.rightParen, message: "Expect ')' after condition.")
     let body = try statement()
-    return While(condition: condition, body: body)
+    return While(id: id, condition: condition, body: body)
   }
 
   private func block() throws -> [Stmt] {
@@ -204,7 +212,7 @@ final class Parser {
   private func expressionStatement() throws -> Stmt {
     let expr = try expression()
     try consume(.semicolon, message: "Expect ';' after expression.")
-    return Expression(expression: expr)
+    return Expression(id: id, expression: expr)
   }
 
   private func expression() throws -> Expr {
@@ -220,7 +228,7 @@ final class Parser {
 
       if let variable = expr as? Variable {
         let name = variable.name
-        return Assign(name: name, value: value)
+        return Assign(id: id, name: name, value: value)
       }
 
       error(token: equals, message: "Invalid assignment target.")
@@ -235,7 +243,7 @@ final class Parser {
     while match(.or) {
       let op = previous()
       let right = try and()
-      expr = Logical(left: expr, operator: op, right: right)
+      expr = Logical(id: id, left: expr, operator: op, right: right)
     }
 
     return expr
@@ -247,7 +255,7 @@ final class Parser {
     while match(.and) {
       let op = previous()
       let right = try equality()
-      expr = Logical(left: expr, operator: op, right: right)
+      expr = Logical(id: id, left: expr, operator: op, right: right)
     }
 
     return expr
@@ -273,7 +281,7 @@ final class Parser {
     if match(.bang, .minus) {
       let op = previous()
       let right = try unary()
-      return Unary(operator: op, right: right)
+      return Unary(id: id, operator: op, right: right)
     }
 
     return try call()
@@ -306,32 +314,32 @@ final class Parser {
     }
     let paren = try consume(.rightParen, message: "Expect ')' after arguments.")
 
-    return Call(callee: callee, paren: paren, arguments: arguments)
+    return Call(id: id, callee: callee, paren: paren, arguments: arguments)
   }
 
   private func primary() throws -> Expr {
     if match(.false) {
-      return Literal(false)
+      return Literal(false, id: id)
     }
     if match(.true) {
-      return Literal(true)
+      return Literal(true, id: id)
     }
     if match(.nil) {
-      return Literal(.nil)
+      return Literal(.nil, id: id)
     }
 
     if match(.number(0), .string("")) {
-      return Literal(previous().type.value)
+      return Literal(previous().type.value, id: id)
     }
 
     if match(.identifier) {
-      return Variable(name: previous())
+      return Variable(id: id, name: previous())
     }
 
     if match(.leftParen) {
       let expr = try expression()
       try consume(.rightParen, message: "Expect ')' after expression.")
-      return Grouping(expression: expr)
+      return Grouping(id: id, expression: expr)
     }
 
     throw error(token: peek(), message: "Expect expression.")
@@ -343,7 +351,7 @@ final class Parser {
     while match(types) {
       let op = previous()
       let right = try expression()
-      expr = Binary(left: expr, operator: op, right: right)
+      expr = Binary(id: id, left: expr, operator: op, right: right)
     }
 
     return expr

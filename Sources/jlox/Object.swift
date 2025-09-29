@@ -30,16 +30,16 @@ extension Object: CustomStringConvertible {
 }
 
 extension Literal {
-  init(_ value: Object?) {
-    self.init(value: value ?? .nil)
+  init(_ value: Object?, id: Int) {
+    self.init(id: id, value: value ?? .nil)
   }
-  init(_ value: Bool) {
-    self.init(value: .boolean(value))
+  init(_ value: Bool, id: Int) {
+    self.init(id: id, value: .boolean(value))
   }
-  init(_ value: Double) {
-    self.init(value: .number(value))
+  init(_ value: Double, id: Int) {
+    self.init(id: id, value: .number(value))
   }
-  init(_ value: String) {
-    self.init(value: .string(value))
+  init(_ value: String, id: Int) {
+    self.init(id: id, value: .string(value))
   }
 }

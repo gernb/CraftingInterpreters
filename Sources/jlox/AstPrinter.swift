@@ -51,13 +51,16 @@ struct AstPrinter: ExprVisitor {
 extension AstPrinter {
   static func test() {
     let expression: Expr = Binary(
+      id: 0,
       left: Unary(
+        id: 1,
         operator: Token(type: .minus, lexeme: "-", line: 1),
-        right: Literal(123)
+        right: Literal(123, id: 2)
       ),
       operator: Token(type: .star, lexeme: "*", line: 1),
       right: Grouping(
-        expression: Literal(45.67)
+        id: 3,
+        expression: Literal(45.67, id: 4)
       )
     )
     Swift.print(AstPrinter().print(expr: expression))

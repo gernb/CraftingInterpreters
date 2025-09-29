@@ -8,11 +8,13 @@ final class Interpreter: ExprVisitor, StmtVisitor {
 
   private let globals: Environment
   private var environment: Environment
+  private var locals: [Expr.ID: Int]
 
   init() {
     let globals = Environment()
     self.globals = globals
     self.environment = globals
+    self.locals = [:]
 
     struct Clock: LoxCallable, CustomStringConvertible {
       var description: String { "<native fn>" }
@@ -36,9 +38,18 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     }
   }
 
+  func resolve(_ expr: Expr, depth: Int) {
+    locals[expr.id] = depth
+  }
+
   func visitAssignExpr(_ expr: Assign) throws -> Object {
     let value = try evaluate(expr.value)
-    try environment.assign(name: expr.name, value: value)
+    let distance = locals[expr.id]
+    if let distance {
+      environment.assignAt(distance, name: expr.name, value: value)
+    } else {
+      try globals.assign(name: expr.name, value: value)
+    }
     return value
   }
 
@@ -143,7 +154,7 @@ final class Interpreter: ExprVisitor, StmtVisitor {
   }
 
   func visitVariableExpr(_ expr: Variable) throws -> Object {
-    try environment.get(expr.name)
+    try lookUpVariable(name: expr.name, expr: expr)
   }
 
   func visitBlockStmt(_ stmt: Block) throws {
@@ -224,6 +235,15 @@ final class Interpreter: ExprVisitor, StmtVisitor {
       throw RuntimeError(op: op, message: "Operand must be a number.")
     }
     return value
+  }
+
+  private func lookUpVariable(name: Token, expr: Expr) throws -> Object {
+    let distance = locals[expr.id]
+    if let distance {
+      return try environment.getAt(distance, name: name.lexeme)
+    } else {
+      return try globals.get(name)
+    }
   }
 
   private func stringify(_ object: Object) -> String {
