@@ -1,10 +1,12 @@
 /*
 program        → declaration* EOF ;
 
-declaration    → funDecl
+declaration    → classDecl
+               | funDecl
                | varDecl
                | statement ;
 
+classDecl      → "class" IDENTIFIER "{" function* "}" ;
 funDecl        → "fun" function ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
@@ -31,7 +33,7 @@ whileStmt      → "while" "(" expression ")" statement ;
 block          → "{" declaration* "}" ;
 
 expression     → assignment ;
-assignment     → IDENTIFIER "=" assignment
+assignment     → ( call "." )? IDENTIFIER "=" assignment
                | logic_or ;
 logic_or       → logic_and ( "or" logic_and )* ;
 logic_and      → equality ( "and" equality )* ;
@@ -40,7 +42,7 @@ comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | call ;
-call           → primary ( "(" arguments? ")" )* ;
+call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 primary        → "true" | "false" | "nil"
                | NUMBER | STRING
                | "(" expression ")"
@@ -77,6 +79,9 @@ final class Parser {
 
   private func declaration() -> Stmt? {
     do {
+      if match(.class) {
+        return try classDeclaration()
+      }
       if match(.fun) {
         return try function(kind: "function")
       }
@@ -90,6 +95,16 @@ final class Parser {
     }
   }
 
+  private func classDeclaration() throws -> Stmt {
+    let name = try consume(.identifier, message: "Expect class name.")
+    try consume(.leftBrace, message: "Expect '{' before class body.")
+    var methods: [Function] = []
+    while check(.rightBrace) == false && isAtEnd() == false {
+      try methods.append(function(kind: "method"))
+    }
+    try consume(.rightBrace, message: "Expect '}' after class body.")
+    return Class(id: id, name: name, methods: methods)
+  }
 
   private func function(kind: String) throws -> Function {
     let name = try consume(.identifier, message: "Expect \(kind) name.")
@@ -229,6 +244,8 @@ final class Parser {
       if let variable = expr as? Variable {
         let name = variable.name
         return Assign(id: id, name: name, value: value)
+      } else if let getExpr = expr as? Get {
+        return Set(id: id, object: getExpr.object, name: getExpr.name, value: value)
       }
 
       error(token: equals, message: "Invalid assignment target.")
@@ -293,6 +310,9 @@ final class Parser {
     while true { 
       if match(.leftParen) {
         expr = try finishCall(expr)
+      } else if match(.dot) {
+        let name = try consume(.identifier, message: "Expect property name after '.'.")
+        expr = Get(id: id, object: expr, name: name)
       } else {
         break
       }
@@ -330,6 +350,10 @@ final class Parser {
 
     if match(.number(0), .string("")) {
       return Literal(previous().type.value, id: id)
+    }
+
+    if match(.this) {
+      return This(id: id, keyword: previous())
     }
 
     if match(.identifier) {

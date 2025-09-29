@@ -115,6 +115,14 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     return try loxFunction.call(interpreter: self, arguments: arguments)
   }
 
+  func visitGetExpr(_ expr: Get) throws -> Object {
+    let object = try evaluate(expr.object)
+    if case .instance(let instance) = object {
+      return try instance.get(expr.name)
+    }
+    throw RuntimeError(op: expr.name, message: "Only instances have properties.")
+  }
+
   func visitGroupingExpr(_ expr: Grouping) throws -> Object {
     try evaluate(expr.expression)
   }
@@ -139,6 +147,20 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     return try evaluate(expr.right)
   }
 
+  func visitSetExpr(_ expr: Set) throws -> Object {
+    let object = try evaluate(expr.object)
+    guard case .instance(let instance) = object else {
+      throw RuntimeError(op: expr.name, message: "Only instances have fields.")
+    }
+    let value = try evaluate(expr.value)
+    instance.set(expr.name, value: value)
+    return value
+  }
+
+  func visitThisExpr(_ expr: This) throws -> Object {
+    try lookUpVariable(name: expr.keyword, expr: expr)
+  }
+
   func visitUnaryExpr(_ expr: Unary) throws -> Object {
     let right = try evaluate(expr.right)
 
@@ -161,12 +183,27 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     try executeBlock(stmt.statements, environment: .init(enclosing: environment))
   }
 
+  func visitClassStmt(_ stmt: Class) throws {
+    environment.define(name: stmt.name.lexeme, value: .nil)
+    var methods: [String: LoxFunction] = [:]
+    for method in stmt.methods {
+      let function = LoxFunction(
+        method,
+        closure: environment,
+        isInitializer: method.name.lexeme == "init"
+      )
+      methods[method.name.lexeme] = function
+    }
+    let loxClass = LoxClass(name: stmt.name.lexeme, methods: methods)
+    try environment.assign(name: stmt.name, value: .function(loxClass))
+  }
+
   func visitExpressionStmt(_ stmt: Expression) throws {
     try evaluate(stmt.expression)
   }
 
   func visitFunctionStmt(_ stmt: Function) throws {
-    let function = LoxFunction(stmt, closure: environment)
+    let function = LoxFunction(stmt, closure: environment, isInitializer: false)
     environment.define(name: stmt.name.lexeme, value: .function(function))
   }
 

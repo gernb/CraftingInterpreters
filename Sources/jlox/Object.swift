@@ -4,6 +4,7 @@ enum Object {
   case number(Double)
   case string(String)
   case function(LoxCallable)
+  case instance(LoxInstance)
 }
 extension Object: Equatable {
   static func == (lhs: Self, rhs: Self) -> Bool {
@@ -25,6 +26,7 @@ extension Object: CustomStringConvertible {
     case .number(let value): "\(value)"
     case .string(let value): "\(value)"
     case .function(let value): "\(value)"
+    case .instance(let value): "\(value)"
     }
   }
 }

@@ -15,6 +15,10 @@ struct AstPrinter: ExprVisitor {
     parenthesize(name: "call", exprs: expr.callee)
   }
 
+  func visitGetExpr(_ expr: Get) throws -> String {
+    parenthesize(name: "get \(expr.name.lexeme) from", exprs: expr.object)
+  }
+
   func visitGroupingExpr(_ expr: Grouping) -> String {
     parenthesize(name: "group", exprs: expr.expression)
   }
@@ -25,6 +29,14 @@ struct AstPrinter: ExprVisitor {
 
   func visitLogicalExpr(_ expr: Logical) throws -> String {
     parenthesize(name: expr.operator.lexeme, exprs: expr.left, expr.right)
+  }
+
+  func visitSetExpr(_ expr: Set) throws -> String {
+    parenthesize(name: "set \(expr.name.lexeme)", exprs: expr.object, expr.value)
+  }
+
+  func visitThisExpr(_ expr: This) throws -> String {
+    "\(expr.keyword.lexeme)"
   }
 
   func visitUnaryExpr(_ expr: Unary) -> String {

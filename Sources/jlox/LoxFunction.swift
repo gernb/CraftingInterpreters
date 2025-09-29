@@ -4,10 +4,12 @@ final class LoxFunction: LoxCallable, CustomStringConvertible {
 
   private let declaration: Function
   private let closure: Environment
+  private let isInitializer: Bool
 
-  init(_ declaration: Function, closure: Environment) {
+  init(_ declaration: Function, closure: Environment, isInitializer: Bool) {
     self.declaration = declaration
     self.closure = closure
+    self.isInitializer = isInitializer
   }
 
   func call(interpreter: Interpreter, arguments: [Object]) throws -> Object {
@@ -19,8 +21,15 @@ final class LoxFunction: LoxCallable, CustomStringConvertible {
     do {
       try interpreter.executeBlock(declaration.body, environment: environment)
     } catch let returnValue as ReturnException {
-      return returnValue.value
+      return isInitializer ? try closure.getAt(0, name: "this") : returnValue.value
     }
-    return .nil
+
+    return isInitializer ? try closure.getAt(0, name: "this") : .nil
+  }
+
+  func bind(_ instance: LoxInstance) -> LoxFunction {
+    let environment = Environment(enclosing: closure)
+    environment.define(name: "this", value: .instance(instance))
+    return LoxFunction(declaration, closure: environment, isInitializer: isInitializer)
   }
 }
