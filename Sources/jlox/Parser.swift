@@ -1,17 +1,24 @@
 /*
 program        → declaration* EOF ;
 
-declaration    → varDecl
+declaration    → funDecl
+               | varDecl
                | statement ;
 
+funDecl        → "fun" function ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
+
+function       → IDENTIFIER "(" parameters? ")" block ;
+parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 
 statement      → exprStmt
                | forStmt
                | ifStmt
                | printStmt
+               | returnStmt
                | whileStmt
                | block ;
+
 exprStmt       → expression ";" ;
 forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
                  expression? ";"
@@ -19,6 +26,7 @@ forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
 ifStmt         → "if" "(" expression ")" statement
                ( "else" statement )? ;
 printStmt      → "print" expression ";" ;
+returnStmt     → "return" expression? ";" ;
 whileStmt      → "while" "(" expression ")" statement ;
 block          → "{" declaration* "}" ;
 
@@ -62,6 +70,9 @@ final class Parser {
 
   private func declaration() -> Stmt? {
     do {
+      if match(.fun) {
+        return try function(kind: "function")
+      }
       if match(.var) {
         return try varDeclaration()
       }
@@ -70,6 +81,25 @@ final class Parser {
       synchronize()
       return nil
     }
+  }
+
+
+  private func function(kind: String) throws -> Function {
+    let name = try consume(.identifier, message: "Expect \(kind) name.")
+    try consume(.leftParen, message: "Expect '(' after \(kind) name.")
+    var parameters: [Token] = []
+    if check(.rightParen) == false {
+      repeat {
+        if parameters.count >= 255 {
+          error(token: peek(), message: "Can't have more than 255 parameters.")
+        }
+        try parameters.append(consume(.identifier, message: "Expect parameter name."))
+      } while match(.comma)
+    }
+    try consume(.rightParen, message: "Expect ')' after parameters.")
+    try consume(.leftBrace, message: "Expect '{' before \(kind) body.")
+    let body = try block()
+    return Function(name: name, params: parameters, body: body)
   }
 
   private func varDeclaration() throws -> Stmt {
@@ -88,6 +118,9 @@ final class Parser {
     }
     if match(.print) {
       return try printStatement()
+    }
+    if match(.return) {
+      return try returnStatement()
     }
     if match(.while) {
       return try whileStatement()
@@ -141,6 +174,13 @@ final class Parser {
     let value = try expression()
     try consume(.semicolon, message: "Expect ';' after value.")
     return Print(expression: value)
+  }
+
+  private func returnStatement() throws -> Stmt {
+    let keyword = previous()
+    let value = check(.semicolon) ? nil : try expression()
+    try consume(.semicolon, message: "Expect ';' after return value.")
+    return Return(keyword: keyword, value: value)
   }
 
   private func whileStatement() throws -> Stmt {

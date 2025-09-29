@@ -24,7 +24,7 @@ extension Object: CustomStringConvertible {
     case .boolean(let value): "\(value)"
     case .number(let value): "\(value)"
     case .string(let value): "\(value)"
-    case .function(let value): "fun \(value)"
+    case .function(let value): "\(value)"
     }
   }
 }

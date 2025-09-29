@@ -154,6 +154,11 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     try evaluate(stmt.expression)
   }
 
+  func visitFunctionStmt(_ stmt: Function) throws {
+    let function = LoxFunction(stmt, closure: environment)
+    environment.define(name: stmt.name.lexeme, value: .function(function))
+  }
+
   func visitIfStmt(_ stmt: If) throws {
     if isTruthy(try evaluate(stmt.condition)) {
       try execute(stmt.thenBranch)
@@ -165,6 +170,11 @@ final class Interpreter: ExprVisitor, StmtVisitor {
   func visitPrintStmt(_ stmt: Print) throws {
     let value = try evaluate(stmt.expression)
     print(stringify(value))
+  }
+
+  func visitReturnStmt(_ stmt: Return) throws {
+    let value = try stmt.value.map(evaluate(_:)) ?? .nil
+    throw ReturnException(value: value)
   }
 
   func visitVarStmt(_ stmt: Var) throws {
@@ -191,7 +201,7 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     try stmt.accept(self)
   }
 
-  private func executeBlock(_ statements: [Stmt], environment: Environment) throws {
+  func executeBlock(_ statements: [Stmt], environment: Environment) throws {
     let previous = self.environment
     defer {
       self.environment = previous
