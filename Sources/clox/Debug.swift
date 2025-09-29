@@ -1,3 +1,5 @@
+let DEBUG_TRACE_EXECUTION = true
+
 enum Debug {
   static func disassemble(chunk: Chunk, name: String) {
     print("== \(name) ==")
@@ -8,7 +10,8 @@ enum Debug {
     }
   }
 
-  private static func disassembleInstruction(at offset: Int, in chunk: Chunk) -> Int {
+  @discardableResult
+  static func disassembleInstruction(at offset: Int, in chunk: Chunk) -> Int {
     print(String(format: "%04d ", offset), terminator: "")
     if offset > 0 && chunk.lines[offset] == chunk.lines[offset - 1] {
       print("   | ", terminator: "")
@@ -21,6 +24,16 @@ enum Debug {
     switch opCode {
     case .constant:
       return constantInstruction(name: opCode!.description, chunk: chunk, offset: offset)
+    case .add:
+      return simpleInstruction(name: opCode!.description, offset: offset)
+    case .subtract:
+      return simpleInstruction(name: opCode!.description, offset: offset)
+    case .multiply:
+      return simpleInstruction(name: opCode!.description, offset: offset)
+    case .divide:
+      return simpleInstruction(name: opCode!.description, offset: offset)
+    case .negate:
+      return simpleInstruction(name: opCode!.description, offset: offset)
     case .return:
       return simpleInstruction(name: opCode!.description, offset: offset)
     case .none:
@@ -40,5 +53,14 @@ enum Debug {
   private static func simpleInstruction(name: String, offset: Int) -> Int {
     print(name)
     return offset + 1
+  }
+}
+
+enum Log {
+  static func trace(block: () -> Void) {
+    #if DEBUG
+    guard DEBUG_TRACE_EXECUTION else { return }
+    block()
+    #endif
   }
 }
