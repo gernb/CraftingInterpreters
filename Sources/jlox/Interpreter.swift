@@ -157,6 +157,18 @@ final class Interpreter: ExprVisitor, StmtVisitor {
     return value
   }
 
+  func visitSuperExpr(_ expr: Super) throws -> Object {
+    guard let distance = locals[expr.id],
+      case .function(let loxFunc) = try environment.getAt(distance, name: "super"),
+      let superclass = loxFunc as? LoxClass,
+      case .instance(let this) = try environment.getAt(distance - 1, name: "this"),
+      let method = superclass.findMethod(expr.method.lexeme)
+    else {
+      throw RuntimeError(op: expr.method, message: "Undefined property '\(expr.method.lexeme)'.")
+    }
+    return .function(method.bind(this))
+  }
+
   func visitThisExpr(_ expr: This) throws -> Object {
     try lookUpVariable(name: expr.keyword, expr: expr)
   }
@@ -184,7 +196,24 @@ final class Interpreter: ExprVisitor, StmtVisitor {
   }
 
   func visitClassStmt(_ stmt: Class) throws {
+    let superclass: LoxClass?
+    if let superclassVar = stmt.superclass {
+      let object = try evaluate(superclassVar)
+      guard case .function(let loxFunc) = object, let loxClass = loxFunc as? LoxClass else {
+        throw RuntimeError(op: superclassVar.name, message: "Superclass must be a class.")
+      }
+      superclass = loxClass
+    } else {
+      superclass = nil
+    }
+
     environment.define(name: stmt.name.lexeme, value: .nil)
+
+    if let superclass {
+      environment = Environment(enclosing: environment)
+      environment.define(name: "super", value: .function(superclass))
+    }
+
     var methods: [String: LoxFunction] = [:]
     for method in stmt.methods {
       let function = LoxFunction(
@@ -194,7 +223,13 @@ final class Interpreter: ExprVisitor, StmtVisitor {
       )
       methods[method.name.lexeme] = function
     }
-    let loxClass = LoxClass(name: stmt.name.lexeme, methods: methods)
+
+    let loxClass = LoxClass(name: stmt.name.lexeme, superclass: superclass, methods: methods)
+
+    if superclass != nil {
+      environment = environment.enclosing!
+    }
+
     try environment.assign(name: stmt.name, value: .function(loxClass))
   }
 

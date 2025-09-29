@@ -4,10 +4,12 @@ final class LoxClass: LoxCallable, CustomStringConvertible {
     findMethod("init")?.arity ?? 0
   }
   let name: String
+  let superclass: LoxClass?
   let methods: [String: LoxFunction]
 
-  init(name: String, methods: [String: LoxFunction]) {
+  init(name: String, superclass: LoxClass?, methods: [String: LoxFunction]) {
     self.name = name
+    self.superclass = superclass
     self.methods = methods
   }
 
@@ -21,6 +23,6 @@ final class LoxClass: LoxCallable, CustomStringConvertible {
   }
 
   func findMethod(_ name: String) -> LoxFunction? {
-    methods[name]
+    methods[name] ?? superclass?.findMethod(name)
   }
 }

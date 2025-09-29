@@ -35,6 +35,10 @@ struct AstPrinter: ExprVisitor {
     parenthesize(name: "set \(expr.name.lexeme)", exprs: expr.object, expr.value)
   }
 
+  func visitSuperExpr(_ expr: Super) throws -> String {
+    "\(expr.keyword.lexeme).\(expr.method.lexeme)"
+  }
+
   func visitThisExpr(_ expr: This) throws -> String {
     "\(expr.keyword.lexeme)"
   }

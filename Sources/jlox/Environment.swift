@@ -1,5 +1,5 @@
 final class Environment {
-  private let enclosing: Environment?
+  let enclosing: Environment?
   private var values: [String: Object] = [:]
 
   init(enclosing: Environment? = nil) {

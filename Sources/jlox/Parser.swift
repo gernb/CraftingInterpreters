@@ -6,7 +6,8 @@ declaration    → classDecl
                | varDecl
                | statement ;
 
-classDecl      → "class" IDENTIFIER "{" function* "}" ;
+classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )?
+                 "{" function* "}" ;
 funDecl        → "fun" function ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
@@ -43,10 +44,9 @@ term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | call ;
 call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
-primary        → "true" | "false" | "nil"
-               | NUMBER | STRING
-               | "(" expression ")"
-               | IDENTIFIER ;
+primary        → "true" | "false" | "nil" | "this"
+               | NUMBER | STRING | IDENTIFIER | "(" expression ")"
+               | "super" "." IDENTIFIER ;
 
 arguments      → expression ( "," expression )* ;
 */
@@ -97,13 +97,20 @@ final class Parser {
 
   private func classDeclaration() throws -> Stmt {
     let name = try consume(.identifier, message: "Expect class name.")
+    let superclass: Variable?
+    if match(.less) {
+      try consume(.identifier, message: "Expect superclass name.")
+      superclass = Variable(id: id, name: previous())
+    } else {
+      superclass = nil
+    }
     try consume(.leftBrace, message: "Expect '{' before class body.")
     var methods: [Function] = []
     while check(.rightBrace) == false && isAtEnd() == false {
       try methods.append(function(kind: "method"))
     }
     try consume(.rightBrace, message: "Expect '}' after class body.")
-    return Class(id: id, name: name, methods: methods)
+    return Class(id: id, name: name, superclass: superclass, methods: methods)
   }
 
   private func function(kind: String) throws -> Function {
@@ -352,6 +359,12 @@ final class Parser {
       return Literal(previous().type.value, id: id)
     }
 
+    if match(.super) {
+      let keyword = previous()
+      try consume(.dot, message: "Expect '.' after 'super'.")
+      let method = try consume(.identifier, message: "Expect superclass method name.")
+      return Super(id: id, keyword: keyword, method: method)
+    }
     if match(.this) {
       return This(id: id, keyword: previous())
     }
