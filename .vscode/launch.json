@@ -35,6 +35,24 @@
       "name": "Release jlox",
       "program": "${workspaceFolder:CraftingInterpreters}/.build/release/jlox",
       "preLaunchTask": "swift: Build Release jlox"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CraftingInterpreters}",
+      "name": "Debug clox",
+      "program": "${workspaceFolder:CraftingInterpreters}/.build/debug/clox",
+      "preLaunchTask": "swift: Build Debug clox"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CraftingInterpreters}",
+      "name": "Release clox",
+      "program": "${workspaceFolder:CraftingInterpreters}/.build/release/clox",
+      "preLaunchTask": "swift: Build Release clox"
     }
   ]
 }

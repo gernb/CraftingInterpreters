@@ -1,7 +1,10 @@
 CONFIG = debug
 
+clox:
+	swift build -c ${CONFIG} --target clox
+
 jlox: generated
-	swift build -c ${CONFIG}
+	swift build -c ${CONFIG} --target jlox
 
 generated:
 	rm -rf Sources/jlox/Generated
