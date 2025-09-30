@@ -37,7 +37,7 @@ enum Debug {
     case .return:
       return simpleInstruction(name: opCode!.description, offset: offset)
     case .none:
-      print("Unknown opcode \(instruction)");
+      print("Unknown opcode \(instruction)")
       return offset + 1
     }
   }

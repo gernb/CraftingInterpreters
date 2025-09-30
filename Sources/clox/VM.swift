@@ -17,10 +17,10 @@ final class VM {
   deinit {
   }
 
-  func interpret(chunk: Chunk) -> InterpretResult {
-    self.chunk = chunk
-    self.ip = 0
-    return run()
+  @discardableResult
+  func interpret(_ source: String) -> InterpretResult {
+    Compiler.compile(source)
+    return .ok
   }
 
   private func run() -> InterpretResult {
