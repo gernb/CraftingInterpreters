@@ -1,4 +1,5 @@
 let DEBUG_TRACE_EXECUTION = true
+let DEBUG_PRINT_CODE = true
 
 enum Debug {
   static func disassemble(chunk: Chunk, name: String) {
@@ -60,6 +61,13 @@ enum Log {
   static func trace(block: () -> Void) {
     #if DEBUG
     guard DEBUG_TRACE_EXECUTION else { return }
+    block()
+    #endif
+  }
+
+  static func print(block: () -> Void) {
+    #if DEBUG
+    guard DEBUG_PRINT_CODE else { return }
     block()
     #endif
   }

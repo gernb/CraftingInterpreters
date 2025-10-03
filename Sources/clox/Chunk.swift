@@ -23,9 +23,9 @@ struct Chunk {
     lines.append(line)
   }
 
-  mutating func addConstant(value: Value) -> UInt8 {
+  mutating func addConstant(value: Value) -> Int {
     constants.write(value: value)
-    return UInt8(constants.count - 1)
+    return constants.count - 1
   }
 
   mutating func free() {

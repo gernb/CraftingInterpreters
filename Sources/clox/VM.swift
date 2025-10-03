@@ -19,8 +19,15 @@ final class VM {
 
   @discardableResult
   func interpret(_ source: String) -> InterpretResult {
-    Compiler.compile(source)
-    return .ok
+    guard let chunk = Compiler.compile(source) else {
+      return .compileError
+    }
+
+    self.chunk = chunk
+    self.ip = 0
+
+    let result = run()
+    return result
   }
 
   private func run() -> InterpretResult {
