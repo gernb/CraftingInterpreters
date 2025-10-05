@@ -56,8 +56,9 @@ enum Compiler {
     parsePrecedence(.unary)
     // Emit the operator instruction.
     switch operatorType {
-      case .minus: emitOpCode(.negate)
-      default: return // Unreachable.
+    case .bang: emitOpCode(.not)
+    case .minus: emitOpCode(.negate)
+    default: return // Unreachable.
     }
   }
 
@@ -67,11 +68,26 @@ enum Compiler {
     parsePrecedence(rule.precedence)
 
     switch operatorType {
+    case .bangEqual: emitBytes(opCode: .equal, byte: OpCode.not.rawValue)
+    case .equalEqual: emitOpCode(.equal)
+    case .greater: emitOpCode(.greater)
+    case .greaterEqual: emitBytes(opCode: .less, byte: OpCode.not.rawValue)
+    case .less: emitOpCode(.less)
+    case .lessEqual: emitBytes(opCode: .greater, byte: OpCode.not.rawValue)
     case .plus: emitOpCode(.add)
     case .minus: emitOpCode(.subtract)
     case .star: emitOpCode(.multiply)
     case .slash: emitOpCode(.divide)
     default: return // Unreachable.
+    }
+  }
+
+  private static func literal() {
+    switch parser.previous.type {
+      case .false: emitOpCode(.false)
+      case .nil: emitOpCode(.nil)
+      case .true: emitOpCode(.true)
+      default: return // Unreachable.
     }
   }
 
@@ -216,31 +232,31 @@ extension Compiler {
       .semicolon: .init(prefix: nil, infix: nil, precedence: .none),
       .slash: .init(prefix: nil, infix: binary, precedence: .factor),
       .star: .init(prefix: nil, infix: binary, precedence: .factor),
-      .bang: .init(prefix: nil, infix: nil, precedence: .none),
-      .bangEqual: .init(prefix: nil, infix: nil, precedence: .none),
+      .bang: .init(prefix: unary, infix: nil, precedence: .none),
+      .bangEqual: .init(prefix: nil, infix: binary, precedence: .equality),
       .equal: .init(prefix: nil, infix: nil, precedence: .none),
-      .equalEqual: .init(prefix: nil, infix: nil, precedence: .none),
-      .greater: .init(prefix: nil, infix: nil, precedence: .none),
-      .greaterEqual: .init(prefix: nil, infix: nil, precedence: .none),
-      .less: .init(prefix: nil, infix: nil, precedence: .none),
-      .lessEqual: .init(prefix: nil, infix: nil, precedence: .none),
+      .equalEqual: .init(prefix: nil, infix: binary, precedence: .equality),
+      .greater: .init(prefix: nil, infix: binary, precedence: .comparison),
+      .greaterEqual: .init(prefix: nil, infix: binary, precedence: .comparison),
+      .less: .init(prefix: nil, infix: binary, precedence: .comparison),
+      .lessEqual: .init(prefix: nil, infix: binary, precedence: .comparison),
       .identifier: .init(prefix: nil, infix: nil, precedence: .none),
       .string: .init(prefix: nil, infix: nil, precedence: .none),
       .number: .init(prefix: number, infix: nil, precedence: .none),
       .and: .init(prefix: nil, infix: nil, precedence: .none),
       .class: .init(prefix: nil, infix: nil, precedence: .none),
       .else: .init(prefix: nil, infix: nil, precedence: .none),
-      .false: .init(prefix: nil, infix: nil, precedence: .none),
+      .false: .init(prefix: literal, infix: nil, precedence: .none),
       .for: .init(prefix: nil, infix: nil, precedence: .none),
       .fun: .init(prefix: nil, infix: nil, precedence: .none),
       .if: .init(prefix: nil, infix: nil, precedence: .none),
-      .nil: .init(prefix: nil, infix: nil, precedence: .none),
+      .nil: .init(prefix: literal, infix: nil, precedence: .none),
       .or: .init(prefix: nil, infix: nil, precedence: .none),
       .print: .init(prefix: nil, infix: nil, precedence: .none),
       .return: .init(prefix: nil, infix: nil, precedence: .none),
       .super: .init(prefix: nil, infix: nil, precedence: .none),
       .this: .init(prefix: nil, infix: nil, precedence: .none),
-      .true: .init(prefix: nil, infix: nil, precedence: .none),
+      .true: .init(prefix: literal, infix: nil, precedence: .none),
       .var: .init(prefix: nil, infix: nil, precedence: .none),
       .while: .init(prefix: nil, infix: nil, precedence: .none),
       .error: .init(prefix: nil, infix: nil, precedence: .none),

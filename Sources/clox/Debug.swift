@@ -24,35 +24,49 @@ enum Debug {
     let opCode = OpCode(rawValue: instruction)
     switch opCode {
     case .constant:
-      return constantInstruction(name: opCode!.description, chunk: chunk, offset: offset)
+      return constantInstruction(opCode, chunk: chunk, offset: offset)
+    case .nil:
+      return simpleInstruction(opCode, offset: offset)
+    case .true:
+      return simpleInstruction(opCode, offset: offset)
+    case .false:
+      return simpleInstruction(opCode, offset: offset)
+    case .equal:
+      return simpleInstruction(opCode, offset: offset)
+    case .greater:
+      return simpleInstruction(opCode, offset: offset)
+    case .less:
+      return simpleInstruction(opCode, offset: offset)
     case .add:
-      return simpleInstruction(name: opCode!.description, offset: offset)
+      return simpleInstruction(opCode, offset: offset)
     case .subtract:
-      return simpleInstruction(name: opCode!.description, offset: offset)
+      return simpleInstruction(opCode, offset: offset)
     case .multiply:
-      return simpleInstruction(name: opCode!.description, offset: offset)
+      return simpleInstruction(opCode, offset: offset)
     case .divide:
-      return simpleInstruction(name: opCode!.description, offset: offset)
+      return simpleInstruction(opCode, offset: offset)
     case .negate:
-      return simpleInstruction(name: opCode!.description, offset: offset)
+      return simpleInstruction(opCode, offset: offset)
+    case .not:
+      return simpleInstruction(opCode, offset: offset)
     case .return:
-      return simpleInstruction(name: opCode!.description, offset: offset)
+      return simpleInstruction(opCode, offset: offset)
     case .none:
       print("Unknown opcode \(instruction)")
       return offset + 1
     }
   }
 
-  private static func constantInstruction(name: String, chunk: Chunk, offset: Int) -> Int {
+  private static func constantInstruction(_ opCode: OpCode!, chunk: Chunk, offset: Int) -> Int {
     let constant = chunk.code[offset + 1]
-    print(String(format: "%-16@ %4d '", name, constant), terminator: "")
+    print(String(format: "%-16@ %4d '", opCode.description, constant), terminator: "")
     print(chunk.constants.values[Int(constant)], terminator: "")
     print("'")
     return offset + 2
   }
 
-  private static func simpleInstruction(name: String, offset: Int) -> Int {
-    print(name)
+  private static func simpleInstruction(_ opCode: OpCode!, offset: Int) -> Int {
+    print(opCode.description)
     return offset + 1
   }
 }

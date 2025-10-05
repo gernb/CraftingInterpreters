@@ -1,7 +1,7 @@
 final class VM {
   private var chunk: Chunk?
   private var ip: Int
-  private var stack: [Value?]
+  private var stack: [Value]
   private var stackTop: Int
 
   private enum Constants {
@@ -42,42 +42,66 @@ final class VM {
     func readConstant() -> Value {
       chunk.constants.values[Int(readByte())]
     }
-    func binaryOp(_ op: (Value, Value) -> Value) {
+    func binaryOp(_ op: (Value, Value) -> Value) throws {
+      guard peek(0).isNumber && peek(1).isNumber else {
+        runtimeError("Operands must be numbers.")
+        throw InterpretResult.runtimeError
+      }
       let b = pop()
       let a = pop()
       push(op(a, b))
     }
 
-    while true {
-      Log.trace {
-        print("          ", terminator: "")
-        for i in 0 ..< stackTop {
-          print("[ \(stack[i]!) ]", terminator: "")
+    do {
+      while true {
+        Log.trace {
+          print("          ", terminator: "")
+          for i in 0 ..< stackTop {
+            print("[ \(stack[i]) ]", terminator: "")
+          }
+          print("")
+          Debug.disassembleInstruction(at: ip, in: chunk)
         }
-        print("")
-        Debug.disassembleInstruction(at: ip, in: chunk)
+
+        let instruction = readByte()
+        let opCode = OpCode(rawValue: instruction)
+        switch opCode {
+        case .constant:
+          let constant = readConstant()
+          push(constant)
+        case .nil: push(nil)
+        case .true: push(true)
+        case .false: push(false)
+        case .equal:
+          let b = pop()
+          let a = pop()
+          push(a == b)
+        case .greater: try binaryOp(>)
+        case .less: try binaryOp(<)
+        case .add: try binaryOp(+)
+        case .subtract: try binaryOp(-)
+        case .multiply: try binaryOp(*)
+        case .divide: try binaryOp(/)
+        case .not: push(Value(booleanLiteral: isFalsey(pop())))
+        case .negate:
+          guard peek(0).isNumber else {
+            runtimeError("Operand must be a number.")
+            return .runtimeError
+          }
+          push(-pop())
+
+        case .return:
+          print(pop())
+          return .ok
+
+        case .none:
+          fatalError()
+        }
       }
-
-      let instruction = readByte()
-      let opCode = OpCode(rawValue: instruction)
-      switch opCode {
-      case .constant:
-        let constant = readConstant()
-        push(constant)
-
-      case .add: binaryOp(+)
-      case .subtract: binaryOp(-)
-      case .multiply: binaryOp(*)
-      case .divide: binaryOp(/)
-      case .negate: push(-pop())
-
-      case .return:
-        print(pop())
-        return .ok
-
-      case .none:
-        fatalError()
-      }
+    } catch let error as InterpretResult {
+      return error
+    } catch {
+      fatalError()
     }
   }
 
@@ -88,16 +112,32 @@ final class VM {
 
   private func pop() -> Value {
     stackTop -= 1
-    return stack[stackTop]!
+    return stack[stackTop]
+  }
+
+  private func peek(_ distance: Int) -> Value {
+    stack[stackTop - 1 - distance]
+  }
+
+  private func isFalsey(_ value: Value) -> Bool {
+    value.isNil || (value.isBool && !value.asBool!)
   }
 
   private func resetStack() {
     stackTop = 0
   }
+
+  private func runtimeError(_ message: String) {
+    print(message)
+    let instruction = ip - 1
+    let line = chunk!.lines[instruction]
+    print("[line \(line)] in script")
+    resetStack()
+  }
 }
 
 extension VM {
-  enum InterpretResult {
+  enum InterpretResult: Swift.Error {
     case ok, compileError, runtimeError
   }
 }
