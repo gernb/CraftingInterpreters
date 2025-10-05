@@ -42,14 +42,10 @@ final class VM {
     func readConstant() -> Value {
       chunk.constants.values[Int(readByte())]
     }
-    func binaryOp(_ op: (Value, Value) -> Value) throws {
-      guard peek(0).isNumber && peek(1).isNumber else {
-        runtimeError("Operands must be numbers.")
-        throw InterpretResult.runtimeError
-      }
+    func binaryOp(_ op: (Value, Value) throws -> Value) throws {
       let b = pop()
       let a = pop()
-      push(op(a, b))
+      try push(op(a, b))
     }
 
     do {
@@ -98,8 +94,9 @@ final class VM {
           fatalError()
         }
       }
-    } catch let error as InterpretResult {
-      return error
+    } catch let error as RuntimeError {
+      runtimeError(error.message)
+      return .runtimeError
     } catch {
       fatalError()
     }
@@ -137,7 +134,11 @@ final class VM {
 }
 
 extension VM {
-  enum InterpretResult: Swift.Error {
+  enum InterpretResult {
     case ok, compileError, runtimeError
+  }
+
+  struct RuntimeError: Swift.Error {
+    let message: String
   }
 }

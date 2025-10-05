@@ -2,6 +2,7 @@ enum Value {
   case bool(Bool)
   case `nil`
   case number(Double)
+  case object(Obj)
 
   var asBool: Bool? {
     guard case .bool(let value) = self else { return nil }
@@ -9,6 +10,13 @@ enum Value {
   }
   var asNumber: Double? {
     guard case .number(let value) = self else { return nil }
+    return value
+  }
+  var asString: String? {
+    self.asObject?.asString
+  }
+  var asObject: Obj? {
+    guard case .object(let value) = self else { return nil }
     return value
   }
 
@@ -24,42 +32,54 @@ enum Value {
     guard case .number = self else { return false }
     return true
   }
+  var isString: Bool {
+    guard case .object(let value) = self else { return false }
+    return value.isString
+  }
+  var isObject: Bool {
+    guard case .object = self else { return false }
+    return true
+  }
 
   var type: ValueType {
     switch self {
     case .bool: .bool
     case .nil: .nil
     case .number: .number
+    case .object: .object
     }
   }
 
   enum ValueType {
-    case bool, `nil`, number
+    case bool, `nil`, number, object
   }
 }
 
 extension Value {
-  static func + (lhs: Self, rhs: Self) -> Self {
-    guard let l = lhs.asNumber, let r = rhs.asNumber else {
-      fatalError("Cannot use the '+' operator on non-numeric values")
+  static func + (lhs: Self, rhs: Self) throws -> Self {
+    if let l = lhs.asNumber, let r = rhs.asNumber {
+      return .number(l * r)
+    } else if let l = lhs.asString, let r = rhs.asString {
+      return .init(stringLiteral: l + r)
+    } else {
+      throw VM.RuntimeError(message: "Operands must be two numbers or two strings.")
     }
-    return .number(l + r)
   }
-  static func - (lhs: Self, rhs: Self) -> Self {
+  static func - (lhs: Self, rhs: Self) throws -> Self {
     guard let l = lhs.asNumber, let r = rhs.asNumber else {
-      fatalError("Cannot use the '-' operator on non-numeric values")
+      throw VM.RuntimeError(message: "Operands must be numbers.")
     }
     return .number(l - r)
   }
-  static func * (lhs: Self, rhs: Self) -> Self {
+  static func * (lhs: Self, rhs: Self) throws -> Self {
     guard let l = lhs.asNumber, let r = rhs.asNumber else {
-      fatalError("Cannot use the '*' operator on non-numeric values")
+      throw VM.RuntimeError(message: "Operands must be numbers.")
     }
     return .number(l * r)
   }
-  static func / (lhs: Self, rhs: Self) -> Self {
+  static func / (lhs: Self, rhs: Self) throws -> Self {
     guard let l = lhs.asNumber, let r = rhs.asNumber else {
-      fatalError("Cannot use the '/' operator on non-numeric values")
+      throw VM.RuntimeError(message: "Operands must be numbers.")
     }
     return .number(l / r)
   }
@@ -75,18 +95,19 @@ extension Value {
     case .bool: lhs.asBool == rhs.asBool
     case .nil: true
     case .number: lhs.asNumber == rhs.asNumber
+    case .object: lhs.asObject! == rhs.asObject!
     }
     return .bool(value)
   }
-  static func > (lhs: Self, rhs: Self) -> Self {
+  static func > (lhs: Self, rhs: Self) throws -> Self {
     guard let l = lhs.asNumber, let r = rhs.asNumber else {
-      fatalError("Cannot use the '>' operator on non-numeric values")
+      throw VM.RuntimeError(message: "Operands must be numbers.")
     }
     return .bool(l > r)
   }
-  static func < (lhs: Self, rhs: Self) -> Self {
+  static func < (lhs: Self, rhs: Self) throws -> Self {
     guard let l = lhs.asNumber, let r = rhs.asNumber else {
-      fatalError("Cannot use the '<' operator on non-numeric values")
+      throw VM.RuntimeError(message: "Operands must be numbers.")
     }
     return .bool(l < r)
   }
@@ -98,6 +119,7 @@ extension Value: CustomStringConvertible {
     case .bool(let value): "\(value)"
     case .nil: "nil"
     case .number(let value): "\(value)"
+    case .object(let value): "\(value.description)"
     }
   }
 }
@@ -116,6 +138,16 @@ extension Value: ExpressibleByNilLiteral {
     init(nilLiteral: ()) {
       self = .nil
     }
+}
+extension Value: ExpressibleByStringLiteral {
+  init(stringLiteral value: String) {
+    self.init(obj: Obj(stringLiteral: value))
+  }
+}
+extension Value {
+  init(obj value: Obj) {
+    self = .object(value)
+  }
 }
 
 struct ValueArray {

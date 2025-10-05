@@ -91,6 +91,11 @@ enum Compiler {
     }
   }
 
+  private static func string() {
+    let value = parser.previous.lexeme.dropFirst().dropLast()
+    emitConstant(Value(stringLiteral: String(value)))
+  }
+
   private static func parsePrecedence(_ precedence: Precedence) {
     advance()
     guard let prefixRule = getRule(for: parser.previous.type).prefix else {
@@ -241,7 +246,7 @@ extension Compiler {
       .less: .init(prefix: nil, infix: binary, precedence: .comparison),
       .lessEqual: .init(prefix: nil, infix: binary, precedence: .comparison),
       .identifier: .init(prefix: nil, infix: nil, precedence: .none),
-      .string: .init(prefix: nil, infix: nil, precedence: .none),
+      .string: .init(prefix: string, infix: nil, precedence: .none),
       .number: .init(prefix: number, infix: nil, precedence: .none),
       .and: .init(prefix: nil, infix: nil, precedence: .none),
       .class: .init(prefix: nil, infix: nil, precedence: .none),
