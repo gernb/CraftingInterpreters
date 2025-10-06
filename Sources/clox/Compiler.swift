@@ -1,10 +1,16 @@
 enum Compiler {
   nonisolated(unsafe) private static var scanner: Scanner!
   nonisolated(unsafe) private static var parser: Parser!
+  nonisolated(unsafe) private static var current: Compiler!
   nonisolated(unsafe) private static var currentChunk: Chunk!
+
+  private enum Constants {
+    static let uint8Count = Int(UInt8.max) + 1
+  }
 
   static func compile(_ source: String) -> Chunk? {
     scanner = Scanner(source)
+    current = Compiler()
     currentChunk = Chunk()
     parser = Parser()
 
@@ -58,6 +64,10 @@ enum Compiler {
   private static func statement() {
     if match(.print) {
       printStatement()
+    } else if match(.leftBrace) {
+      beginScope()
+      block()
+      endScope()
     } else {
       expressionStatement()
     }
@@ -67,6 +77,13 @@ enum Compiler {
     expression()
     consume(type: .semicolon, message: "Expect ';' after value.")
     emitOpCode(.print)
+  }
+
+  private static func block() {
+    while check(.rightBrace) == false && check(.eof) == false {
+      declaration()
+    }
+    consume(type: .rightBrace, message: "Expect '}' after block.")
   }
 
   private static func expressionStatement() {
@@ -180,12 +197,22 @@ enum Compiler {
   }
 
   private static func namedVariable(_ name: Scanner.Token, canAssign: Bool) {
-    let arg = identifierConstant(name)
+    let getOp: OpCode
+    let setOp: OpCode
+    var arg = resolveLocal(compiler: current, name: name)
+    if arg != -1 {
+      getOp = .getLocal
+      setOp = .setLocal
+    } else {
+      arg = Int(identifierConstant(name))
+      getOp = .getGlobal
+      setOp = .setGlobal
+    }
     if canAssign && match(.equal) {
       expression()
-      emitBytes(opCode: .setGlobal, byte: arg)
+      emitBytes(opCode: setOp, byte: UInt8(arg))
     } else {
-      emitBytes(opCode: .getGlobal, byte: arg)
+      emitBytes(opCode: getOp, byte: UInt8(arg))
     }
   }
 
@@ -212,6 +239,10 @@ enum Compiler {
 
   private static func parseVariable(errorMessage: String) -> UInt8 {
     consume(type: .identifier, message: errorMessage)
+    declareVariable()
+    if current.scopeDepth > 0 {
+      return 0
+    }
     return identifierConstant(parser.previous)
   }
 
@@ -219,8 +250,69 @@ enum Compiler {
     makeConstant(Value(stringLiteral: name.lexeme))
   }
 
+  private static func declareVariable() {
+    if current.scopeDepth == 0 {
+      return
+    }
+    let name = parser.previous
+    for local in current.locals.reversed() {
+      if local.depth != -1 && local.depth < current.scopeDepth {
+        break
+      }
+      if identifiersEqual(name, local.name) {
+        error(message: "Already a variable with this name in this scope.")
+      }
+    }
+    addLocal(name)
+  }
+
+  private static func identifiersEqual(_ a: Scanner.Token, _ b: Scanner.Token) -> Bool {
+    a.lexeme == b.lexeme
+  }
+
+  private static func addLocal(_ name: Scanner.Token) {
+    guard current.locals.count < Constants.uint8Count else {
+      error(message: "Too many local variables in function.")
+      return
+    }
+    let local = Local(name: name, depth: -1)
+    current.locals.append(local)
+  }
+
+  private static func resolveLocal(compiler: Compiler, name: Scanner.Token) -> Int {
+    for (i, local) in compiler.locals.enumerated().reversed() {
+      if identifiersEqual(name, local.name) {
+        if local.depth == -1 {
+          error(message: "Can't read local variable in its own initializer.")
+        }
+        return i
+      }
+    }
+    return -1
+  }
+
   private static func defineVariable(_ global: UInt8) {
+    if current.scopeDepth > 0 {
+      markInitialized()
+      return
+    }
     emitBytes(opCode: .defineGlobal, byte: global)
+  }
+
+  private static func markInitialized() {
+    current.locals[current.locals.count - 1].depth = current.scopeDepth
+  }
+
+  private static func beginScope() {
+    current.scopeDepth += 1
+  }
+
+  private static func endScope() {
+    current.scopeDepth -= 1
+    while let last = current.locals.last, last.depth > current.scopeDepth {
+      emitOpCode(.pop)
+      _ = current.locals.popLast()
+    }
   }
 
   private static func endCompiler() {
@@ -378,5 +470,21 @@ extension Compiler {
       .error: .init(prefix: nil, infix: nil, precedence: .none),
       .eof: .init(prefix: nil, infix: nil, precedence: .none),
     ]
+  }
+
+  struct Compiler {
+    var locals: [Local]
+    var scopeDepth: Int
+
+    init() {
+      self.locals = []
+      self.locals.reserveCapacity(Constants.uint8Count)
+      self.scopeDepth = 0
+    }
+  }
+
+  struct Local {
+    let name: Scanner.Token
+    var depth: Int
   }
 }

@@ -4,6 +4,8 @@ enum OpCode: UInt8 {
   case `true`
   case `false`
   case pop
+  case setLocal
+  case getLocal
   case defineGlobal
   case setGlobal
   case getGlobal
@@ -28,6 +30,8 @@ extension OpCode: CustomStringConvertible {
     case .true: "OP_TRUE"
     case .false: "OP_FALSE"
     case .pop: "OP_POP"
+    case .setLocal: "OP_SET_LOCAL"
+    case .getLocal: "OP_GET_LOCAL"
     case .defineGlobal: "OP_DEFINE_GLOBAL"
     case .setGlobal: "OP_SET_GLOBAL"
     case .getGlobal: "OP_GET_GLOBAL"

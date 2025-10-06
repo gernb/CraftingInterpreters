@@ -71,6 +71,12 @@ final class VM {
         case .true: push(true)
         case .false: push(false)
         case .pop: _ = pop()
+        case .setLocal:
+          let slot = Int(readByte())
+          stack[slot] = peek(0) 
+        case .getLocal:
+          let slot = Int(readByte())
+          push(stack[slot])
         case .defineGlobal:
           let name = readConstant().asString!
           globals[name] = peek(0)

@@ -38,6 +38,8 @@ enum Debug {
       .print,
       .return:
       return simpleInstruction(opCode, offset: offset)
+    case .setLocal, .getLocal:
+      return byteInstruction(opCode, chunk: chunk, offset: offset)
     case .none:
       print("Unknown opcode \(instruction)")
       return offset + 1
@@ -49,6 +51,12 @@ enum Debug {
     print(String(format: "%-16@ %4d '", opCode.description, constant), terminator: "")
     print(chunk.constants.values[Int(constant)], terminator: "")
     print("'")
+    return offset + 2
+  }
+
+  private static func byteInstruction(_ opCode: OpCode!, chunk: Chunk, offset: Int) -> Int {
+    let slot = chunk.code[offset + 1]
+    print(String(format: "%-16@ %4d", opCode.description, slot))
     return offset + 2
   }
 
