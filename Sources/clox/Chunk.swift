@@ -23,6 +23,10 @@ struct Chunk {
     lines.append(line)
   }
 
+  mutating func setByte(at offset: Int, _ value: UInt8) {
+    code[offset] = value
+  }
+
   mutating func addConstant(value: Value) -> Int {
     constants.write(value: value)
     return constants.count - 1

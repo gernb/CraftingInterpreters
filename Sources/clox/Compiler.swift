@@ -64,6 +64,12 @@ enum Compiler {
   private static func statement() {
     if match(.print) {
       printStatement()
+    } else if match(.for) {
+      forStatement()
+    } else if match(.if) {
+      ifStatement()
+    } else if match(.while) {
+      whileStatement()
     } else if match(.leftBrace) {
       beginScope()
       block()
@@ -77,6 +83,84 @@ enum Compiler {
     expression()
     consume(type: .semicolon, message: "Expect ';' after value.")
     emitOpCode(.print)
+  }
+
+  private static func forStatement() {
+    beginScope()
+    consume(type: .leftParen, message: "Expect '(' after 'for'.")
+    if match(.semicolon) {
+      // No initializer.
+    } else if match(.var) {
+      varDeclaration()
+    } else {
+      expressionStatement()
+    }
+
+    var loopStart = currentChunk.code.count
+    var exitJump = -1
+    if match(.semicolon) == false {
+      expression()
+      consume(type: .semicolon, message: "Expect ';' after loop condition.")
+
+      // Jump out of the loop if the condition is false.
+      exitJump = emitJump(.jumpIfFalse)
+      emitOpCode(.pop) // Condition.
+    }
+
+    if match(.rightParen) == false {
+      let bodyJump = emitJump(.jump)
+      let incrementStart = currentChunk.code.count
+      expression()
+      emitOpCode(.pop)
+      consume(type: .rightParen, message: "Expect ')' after for clauses.")
+
+      emitLoop(loopStart)
+      loopStart = incrementStart
+      patchJump(offset: bodyJump)
+    }
+
+    statement()
+    emitLoop(loopStart)
+
+    if exitJump != -1 {
+      patchJump(offset: exitJump)
+      emitOpCode(.pop)  // Condition.
+    }
+
+    endScope()
+  }
+
+  private static func ifStatement() {
+    consume(type: .leftParen, message: "Expect '(' after 'if'.")
+    expression()
+    consume(type: .rightParen, message: "Expect ')' after condition.")
+
+    let thenJump = emitJump(.jumpIfFalse)
+    emitOpCode(.pop)
+    statement()
+    let elseJump = emitJump(.jump)
+    patchJump(offset: thenJump)
+    emitOpCode(.pop)
+
+    if match(.else) {
+      statement()
+    }
+    patchJump(offset: elseJump)
+  }
+
+  private static func whileStatement() {
+    let loopStart = currentChunk.code.count
+    consume(type: .leftParen, message: "Expect '(' after 'while'.")
+    expression()
+    consume(type: .rightParen, message: "Expect ')' after condition.")
+
+    let exitJump = emitJump(.jumpIfFalse)
+    emitOpCode(.pop)
+    statement()
+    emitLoop(loopStart)
+
+    patchJump(offset: exitJump)
+    emitOpCode(.pop)
   }
 
   private static func block() {
@@ -299,6 +383,26 @@ enum Compiler {
     emitBytes(opCode: .defineGlobal, byte: global)
   }
 
+  private static func `and`(_: Bool) {
+    let endJump = emitJump(.jumpIfFalse)
+
+    emitOpCode(.pop)
+    parsePrecedence(.and)
+
+    patchJump(offset: endJump)
+  }
+
+  private static func `or`(_: Bool) {
+    let elseJump = emitJump(.jumpIfFalse)
+    let endJump = emitJump(.jump)
+
+    patchJump(offset: elseJump)
+    emitOpCode(.pop)
+
+    parsePrecedence(.or)
+    patchJump(offset: endJump)
+  }
+
   private static func markInitialized() {
     current.locals[current.locals.count - 1].depth = current.scopeDepth
   }
@@ -334,6 +438,37 @@ enum Compiler {
 
   private static func emitReturn() {
     emitOpCode(.return)
+  }
+
+  private static func emitJump(_ instruction: OpCode) -> Int {
+    emitOpCode(instruction)
+    emitByte(0xff)
+    emitByte(0xff)
+    return currentChunk.code.count - 2
+  }
+
+  private static func patchJump(offset: Int) {
+    // -2 to adjust for the bytecode for the jump offset itself.
+    let jump = currentChunk.code.count - offset - 2
+
+    if jump > UInt16.max {
+      error(message: "Too much code to jump over.")
+    }
+
+    currentChunk.setByte(at: offset, UInt8((jump >> 8) & 0xff))
+    currentChunk.setByte(at: offset + 1, UInt8(jump & 0xff))
+  }
+
+  private static func emitLoop(_ loopStart: Int) {
+    emitOpCode(.loop)
+
+    let offset = currentChunk.code.count - loopStart + 2
+    if offset > UInt16.max {
+      error(message: "Loop body too large.")
+    }
+
+    emitByte(UInt8((offset >> 8) & 0xff))
+    emitByte(UInt8(offset & 0xff))
   }
 
   private static func emitBytes(opCode: OpCode, byte: UInt8) {
@@ -451,7 +586,7 @@ extension Compiler {
       .identifier: .init(prefix: variable, infix: nil, precedence: .none),
       .string: .init(prefix: string, infix: nil, precedence: .none),
       .number: .init(prefix: number, infix: nil, precedence: .none),
-      .and: .init(prefix: nil, infix: nil, precedence: .none),
+      .and: .init(prefix: nil, infix: `and`, precedence: .none),
       .class: .init(prefix: nil, infix: nil, precedence: .none),
       .else: .init(prefix: nil, infix: nil, precedence: .none),
       .false: .init(prefix: literal, infix: nil, precedence: .none),
@@ -459,7 +594,7 @@ extension Compiler {
       .fun: .init(prefix: nil, infix: nil, precedence: .none),
       .if: .init(prefix: nil, infix: nil, precedence: .none),
       .nil: .init(prefix: literal, infix: nil, precedence: .none),
-      .or: .init(prefix: nil, infix: nil, precedence: .none),
+      .or: .init(prefix: nil, infix: `or`, precedence: .none),
       .print: .init(prefix: nil, infix: nil, precedence: .none),
       .return: .init(prefix: nil, infix: nil, precedence: .none),
       .super: .init(prefix: nil, infix: nil, precedence: .none),

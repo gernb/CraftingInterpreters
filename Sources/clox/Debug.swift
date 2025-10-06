@@ -40,6 +40,10 @@ enum Debug {
       return simpleInstruction(opCode, offset: offset)
     case .setLocal, .getLocal:
       return byteInstruction(opCode, chunk: chunk, offset: offset)
+    case .jump, .jumpIfFalse:
+      return jumpInstruction(opCode, sign: 1, chunk: chunk, offset: offset)
+    case .loop:
+      return jumpInstruction(opCode, sign: -1, chunk: chunk, offset: offset)
     case .none:
       print("Unknown opcode \(instruction)")
       return offset + 1
@@ -58,6 +62,13 @@ enum Debug {
     let slot = chunk.code[offset + 1]
     print(String(format: "%-16@ %4d", opCode.description, slot))
     return offset + 2
+  }
+
+  private static func jumpInstruction(_ opCode: OpCode!, sign: Int, chunk: Chunk, offset: Int) -> Int {
+    var jump = Int(chunk.code[offset + 1]) << 8
+    jump |= Int(chunk.code[offset + 2])
+    print(String(format: "%-16@ %4d -> %d", opCode.description, offset, offset + 3 + sign * jump))
+    return offset + 3
   }
 
   private static func simpleInstruction(_ opCode: OpCode!, offset: Int) -> Int {

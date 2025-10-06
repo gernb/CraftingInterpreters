@@ -41,6 +41,11 @@ final class VM {
       defer { ip += 1 }
       return chunk.code[ip]
     }
+    func readShort() -> Int {
+      let msb = Int(readByte()) << 8
+      let lsb = Int(readByte())
+      return msb | lsb
+    }
     func readConstant() -> Value {
       chunk.constants.values[Int(readByte())]
     }
@@ -114,6 +119,17 @@ final class VM {
           push(-pop())
         case .print:
           print(pop())
+        case .jump:
+          let offset = readShort()
+          ip += offset
+        case .jumpIfFalse:
+          let offset = readShort()
+          if isFalsey(peek(0)) {
+            ip += offset
+          }
+        case .loop:
+          let offset = readShort()
+          ip -= offset
         case .return:
           // Exit interpreter.
           return .ok

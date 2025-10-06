@@ -19,6 +19,9 @@ enum OpCode: UInt8 {
   case not
   case negate
   case print
+  case jump
+  case jumpIfFalse
+  case loop
   case `return`
 }
 
@@ -45,6 +48,9 @@ extension OpCode: CustomStringConvertible {
     case .not: "OP_NOT"
     case .negate: "OP_NEGATE"
     case .print: "OP_PRINT"
+    case .jump: "OP_JUMP"
+    case .jumpIfFalse: "OP_JUMP_IF_FALSE"
+    case .loop: "OP_LOOP"
     case .return: "OP_RETURN"
     }
   }
