@@ -205,7 +205,9 @@ final class Scanner {
   private func checkKeyword(_ start: Int, _ length: Int, _ rest: String, _ type: TokenType) -> TokenType {
     let lexeme = source[self.start ..< current]
     let startIdx = source.index(self.start, offsetBy: start)
-    let endIdx = source.index(self.start, offsetBy: start + length)
+    guard let endIdx = source.index(self.start, offsetBy: start + length, limitedBy: source.endIndex) else {
+      return .identifier
+    }
     let match = source[startIdx ..< endIdx]
 
     if lexeme.count == start + length && match == rest {

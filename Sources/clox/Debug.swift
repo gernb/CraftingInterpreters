@@ -1,6 +1,3 @@
-let DEBUG_TRACE_EXECUTION = true
-let DEBUG_PRINT_CODE = true
-
 enum Debug {
   static func disassemble(chunk: Chunk, name: String) {
     print("== \(name) ==")
@@ -23,33 +20,23 @@ enum Debug {
     let instruction = chunk.code[offset]
     let opCode = OpCode(rawValue: instruction)
     switch opCode {
-    case .constant:
+    case .constant, .defineGlobal, .setGlobal, .getGlobal:
       return constantInstruction(opCode, chunk: chunk, offset: offset)
-    case .nil:
-      return simpleInstruction(opCode, offset: offset)
-    case .true:
-      return simpleInstruction(opCode, offset: offset)
-    case .false:
-      return simpleInstruction(opCode, offset: offset)
-    case .equal:
-      return simpleInstruction(opCode, offset: offset)
-    case .greater:
-      return simpleInstruction(opCode, offset: offset)
-    case .less:
-      return simpleInstruction(opCode, offset: offset)
-    case .add:
-      return simpleInstruction(opCode, offset: offset)
-    case .subtract:
-      return simpleInstruction(opCode, offset: offset)
-    case .multiply:
-      return simpleInstruction(opCode, offset: offset)
-    case .divide:
-      return simpleInstruction(opCode, offset: offset)
-    case .negate:
-      return simpleInstruction(opCode, offset: offset)
-    case .not:
-      return simpleInstruction(opCode, offset: offset)
-    case .return:
+    case .nil,
+      .true,
+      .false,
+      .pop,
+      .equal,
+      .greater,
+      .less,
+      .add,
+      .subtract,
+      .multiply,
+      .divide,
+      .negate,
+      .not,
+      .print,
+      .return:
       return simpleInstruction(opCode, offset: offset)
     case .none:
       print("Unknown opcode \(instruction)")
@@ -73,15 +60,13 @@ enum Debug {
 
 enum Log {
   static func trace(block: () -> Void) {
-    #if DEBUG
-    guard DEBUG_TRACE_EXECUTION else { return }
+    #if TraceExecution
     block()
     #endif
   }
 
   static func print(block: () -> Void) {
-    #if DEBUG
-    guard DEBUG_PRINT_CODE else { return }
+    #if PrintCode
     block()
     #endif
   }

@@ -8,6 +8,23 @@ let package = Package(
     .executable(name: "jlox", targets: ["jlox"]),
     .executable(name: "clox", targets: ["clox"]),
   ],
+  traits: [
+    .default(
+      enabledTraits: [
+        "TraceExecution", "PrintCode",
+      ]
+    ),
+    .init(
+      name: "TraceExecution",
+      description: "Log execution tracing messages.",
+      enabledTraits: []
+    ),
+    .init(
+      name: "PrintCode",
+      description: "Print compiled code as disassembly.",
+      enabledTraits: []
+    ),
+  ],
   targets: [
     .executableTarget(
       name: "jlox"

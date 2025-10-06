@@ -58,7 +58,7 @@ enum Value {
 extension Value {
   static func + (lhs: Self, rhs: Self) throws -> Self {
     if let l = lhs.asNumber, let r = rhs.asNumber {
-      return .number(l * r)
+      return .number(l + r)
     } else if let l = lhs.asString, let r = rhs.asString {
       return .init(stringLiteral: l + r)
     } else {

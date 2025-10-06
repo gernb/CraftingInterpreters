@@ -3,6 +3,10 @@ enum OpCode: UInt8 {
   case `nil`
   case `true`
   case `false`
+  case pop
+  case defineGlobal
+  case setGlobal
+  case getGlobal
   case equal
   case greater
   case less
@@ -12,6 +16,7 @@ enum OpCode: UInt8 {
   case divide
   case not
   case negate
+  case print
   case `return`
 }
 
@@ -22,6 +27,10 @@ extension OpCode: CustomStringConvertible {
     case .nil: "OP_NIL"
     case .true: "OP_TRUE"
     case .false: "OP_FALSE"
+    case .pop: "OP_POP"
+    case .defineGlobal: "OP_DEFINE_GLOBAL"
+    case .setGlobal: "OP_SET_GLOBAL"
+    case .getGlobal: "OP_GET_GLOBAL"
     case .equal: "OP_EQUAL"
     case .greater: "OP_GREATER"
     case .less: "OP_LESS"
@@ -31,6 +40,7 @@ extension OpCode: CustomStringConvertible {
     case .divide: "OP_DIVIDE"
     case .not: "OP_NOT"
     case .negate: "OP_NEGATE"
+    case .print: "OP_PRINT"
     case .return: "OP_RETURN"
     }
   }

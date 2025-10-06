@@ -3,6 +3,7 @@ final class VM {
   private var ip: Int
   private var stack: [Value]
   private var stackTop: Int
+  private var globals: [String: Value]
 
   private enum Constants {
     static let stackMax = 256
@@ -12,6 +13,7 @@ final class VM {
     self.ip = 0
     self.stack = Array(repeating: nil, count: Constants.stackMax)
     self.stackTop = 0
+    self.globals = [:]
   }
 
   deinit {
@@ -68,6 +70,25 @@ final class VM {
         case .nil: push(nil)
         case .true: push(true)
         case .false: push(false)
+        case .pop: _ = pop()
+        case .defineGlobal:
+          let name = readConstant().asString!
+          globals[name] = peek(0)
+          _ = pop()
+        case .setGlobal:
+          let name = readConstant().asString!
+          guard globals[name] != nil else {
+            runtimeError("Undefined variable '\(name)'.")
+            return .runtimeError
+          }
+          globals[name] = peek(0)
+        case .getGlobal:
+          let name = readConstant().asString!
+          guard let value = globals[name] else {
+            runtimeError("Undefined variable '\(name)'.")
+            return .runtimeError
+          }
+          push(value)
         case .equal:
           let b = pop()
           let a = pop()
@@ -85,9 +106,10 @@ final class VM {
             return .runtimeError
           }
           push(-pop())
-
-        case .return:
+        case .print:
           print(pop())
+        case .return:
+          // Exit interpreter.
           return .ok
 
         case .none:

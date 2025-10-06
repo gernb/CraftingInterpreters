@@ -7,10 +7,13 @@ enum Compiler {
     scanner = Scanner(source)
     currentChunk = Chunk()
     parser = Parser()
+
     advance()
-    expression()
-    consume(type: .eof, message: "Expect end of expression.")
+    while match(.eof) == false {
+      declaration()
+    }
     endCompiler()
+
     return parser.hadError ? nil : currentChunk
   }
 
@@ -27,6 +30,72 @@ enum Compiler {
     }
   }
 
+  private static func declaration() {
+    if match(.var) {
+      varDeclaration()
+    } else {
+      statement()
+    }
+
+    if parser.panicMode {
+      synchronize()
+    }
+  }
+
+  private static func varDeclaration() {
+    let global = parseVariable(errorMessage: "Expect variable name.")
+
+    if match(.equal) {
+      expression()
+    } else {
+      emitOpCode(.nil)
+    }
+    consume(type: .semicolon, message: "Expect ';' after variable declaration.")
+
+    defineVariable(global)
+  }
+
+  private static func statement() {
+    if match(.print) {
+      printStatement()
+    } else {
+      expressionStatement()
+    }
+  }
+
+  private static func printStatement() {
+    expression()
+    consume(type: .semicolon, message: "Expect ';' after value.")
+    emitOpCode(.print)
+  }
+
+  private static func expressionStatement() {
+    expression()
+    consume(type: .semicolon, message: "Expect ';' after expression.")
+    emitOpCode(.pop)
+  }
+
+  private static func synchronize() {
+    parser.panicMode = false
+
+    while parser.current.type != .eof {
+      if parser.previous.type == .semicolon {
+        return
+      }
+
+      switch parser.current.type {
+      case .class, .fun, .var,
+            .for, .if, .while,
+            .print, .return:
+        return
+      default:
+        break // Do nothing.
+      }
+
+      advance()
+    }
+  }
+
   private static func consume(type: Scanner.TokenType, message: String) {
     if parser.current.type == type {
       advance()
@@ -36,21 +105,31 @@ enum Compiler {
     errorAtCurrent(message: message)
   }
 
+  private static func match(_ type: Scanner.TokenType) -> Bool {
+    guard check(type) else { return false }
+    advance()
+    return true
+  }
+
+  private static func check(_ type: Scanner.TokenType) -> Bool {
+    parser.current.type == type
+  }
+
   private static func expression() {
     parsePrecedence(.assignment)
   }
 
-  private static func number() {
+  private static func number(_: Bool) {
     let value = Double(parser.previous.lexeme)!
     emitConstant(Value(floatLiteral: value))
   }
 
-  private static func grouping() {
+  private static func grouping(_: Bool) {
     expression()
     consume(type: .rightParen, message: "Expect ')' after expression.")
   }
 
-  private static func unary() {
+  private static func unary(_: Bool) {
     let operatorType = parser.previous.type
     // Compile the operand.
     parsePrecedence(.unary)
@@ -62,7 +141,7 @@ enum Compiler {
     }
   }
 
-  private static func binary() {
+  private static func binary(_: Bool) {
     let operatorType = parser.previous.type
     let rule = getRule(for: operatorType)
     parsePrecedence(rule.precedence)
@@ -82,7 +161,7 @@ enum Compiler {
     }
   }
 
-  private static func literal() {
+  private static func literal(_: Bool) {
     switch parser.previous.type {
       case .false: emitOpCode(.false)
       case .nil: emitOpCode(.nil)
@@ -91,9 +170,23 @@ enum Compiler {
     }
   }
 
-  private static func string() {
+  private static func string(_: Bool) {
     let value = parser.previous.lexeme.dropFirst().dropLast()
     emitConstant(Value(stringLiteral: String(value)))
+  }
+
+  private static func variable(canAssign: Bool) {
+    namedVariable(parser.previous, canAssign: canAssign)
+  }
+
+  private static func namedVariable(_ name: Scanner.Token, canAssign: Bool) {
+    let arg = identifierConstant(name)
+    if canAssign && match(.equal) {
+      expression()
+      emitBytes(opCode: .setGlobal, byte: arg)
+    } else {
+      emitBytes(opCode: .getGlobal, byte: arg)
+    }
   }
 
   private static func parsePrecedence(_ precedence: Precedence) {
@@ -103,13 +196,31 @@ enum Compiler {
       return
     }
 
-    prefixRule()
+    let canAssign = precedence <= .assignment
+    prefixRule(canAssign)
 
     while precedence <= getRule(for: parser.current.type).precedence {
       advance()
       let infixRule = getRule(for: parser.previous.type).infix!
-      infixRule()
+      infixRule(canAssign)
     }
+
+    if canAssign && match(.equal) {
+      error(message: "Invalid assignment target.")
+    }
+  }
+
+  private static func parseVariable(errorMessage: String) -> UInt8 {
+    consume(type: .identifier, message: errorMessage)
+    return identifierConstant(parser.previous)
+  }
+
+  private static func identifierConstant(_ name: Scanner.Token) -> UInt8 {
+    makeConstant(Value(stringLiteral: name.lexeme))
+  }
+
+  private static func defineVariable(_ global: UInt8) {
+    emitBytes(opCode: .defineGlobal, byte: global)
   }
 
   private static func endCompiler() {
@@ -220,7 +331,7 @@ extension Compiler {
   }
 
   struct ParseRule {
-    typealias ParseFn = () -> Void
+    typealias ParseFn = (Bool) -> Void
     let prefix: ParseFn?
     let infix: ParseFn?
     let precedence: Precedence
@@ -245,7 +356,7 @@ extension Compiler {
       .greaterEqual: .init(prefix: nil, infix: binary, precedence: .comparison),
       .less: .init(prefix: nil, infix: binary, precedence: .comparison),
       .lessEqual: .init(prefix: nil, infix: binary, precedence: .comparison),
-      .identifier: .init(prefix: nil, infix: nil, precedence: .none),
+      .identifier: .init(prefix: variable, infix: nil, precedence: .none),
       .string: .init(prefix: string, infix: nil, precedence: .none),
       .number: .init(prefix: number, infix: nil, precedence: .none),
       .and: .init(prefix: nil, infix: nil, precedence: .none),
