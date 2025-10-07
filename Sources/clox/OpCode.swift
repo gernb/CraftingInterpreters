@@ -22,6 +22,7 @@ enum OpCode: UInt8 {
   case jump
   case jumpIfFalse
   case loop
+  case call
   case `return`
 }
 
@@ -51,6 +52,7 @@ extension OpCode: CustomStringConvertible {
     case .jump: "OP_JUMP"
     case .jumpIfFalse: "OP_JUMP_IF_FALSE"
     case .loop: "OP_LOOP"
+    case .call: "OP_CALL"
     case .return: "OP_RETURN"
     }
   }

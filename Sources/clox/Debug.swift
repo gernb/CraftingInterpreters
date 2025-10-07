@@ -38,7 +38,7 @@ enum Debug {
       .print,
       .return:
       return simpleInstruction(opCode, offset: offset)
-    case .setLocal, .getLocal:
+    case .setLocal, .getLocal, .call:
       return byteInstruction(opCode, chunk: chunk, offset: offset)
     case .jump, .jumpIfFalse:
       return jumpInstruction(opCode, sign: 1, chunk: chunk, offset: offset)

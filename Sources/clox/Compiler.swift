@@ -2,25 +2,28 @@ enum Compiler {
   nonisolated(unsafe) private static var scanner: Scanner!
   nonisolated(unsafe) private static var parser: Parser!
   nonisolated(unsafe) private static var current: Compiler!
-  nonisolated(unsafe) private static var currentChunk: Chunk!
 
-  private enum Constants {
+  private static var currentChunk: Chunk {
+    get { current.function.chunk }
+    set { current.function.chunk = newValue }
+  }
+
+  enum Constants {
     static let uint8Count = Int(UInt8.max) + 1
   }
 
-  static func compile(_ source: String) -> Chunk? {
+  static func compile(_ source: String) -> ObjFunction? {
     scanner = Scanner(source)
-    current = Compiler()
-    currentChunk = Chunk()
+    current = Compiler(type: .script)
     parser = Parser()
 
     advance()
     while match(.eof) == false {
       declaration()
     }
-    endCompiler()
+    let function = endCompiler()
 
-    return parser.hadError ? nil : currentChunk
+    return parser.hadError ? nil : function
   }
 
   private static func advance() {
@@ -37,7 +40,9 @@ enum Compiler {
   }
 
   private static func declaration() {
-    if match(.var) {
+    if match(.fun) {
+      funDeclaration()
+    } else if match(.var) {
       varDeclaration()
     } else {
       statement()
@@ -46,6 +51,13 @@ enum Compiler {
     if parser.panicMode {
       synchronize()
     }
+  }
+
+  private static func funDeclaration() {
+    let global = parseVariable(errorMessage: "Expect function name.")
+    markInitialized()
+    function(type: .function)
+    defineVariable(global)
   }
 
   private static func varDeclaration() {
@@ -68,6 +80,8 @@ enum Compiler {
       forStatement()
     } else if match(.if) {
       ifStatement()
+    } else if match(.return) {
+      returnStatement()
     } else if match(.while) {
       whileStatement()
     } else if match(.leftBrace) {
@@ -163,6 +177,19 @@ enum Compiler {
     emitOpCode(.pop)
   }
 
+  private static func returnStatement() {
+    if current.type == .script {
+      error(message: "Can't return from top-level code.")
+    }
+    if match(.semicolon) {
+      emitReturn()
+    } else {
+      expression()
+      consume(type: .semicolon, message: "Expect ';' after return value.")
+      emitOpCode(.return)
+    }
+  }
+
   private static func block() {
     while check(.rightBrace) == false && check(.eof) == false {
       declaration()
@@ -216,6 +243,29 @@ enum Compiler {
     parser.current.type == type
   }
 
+  private static func function(type: FunctionType) {
+    current = Compiler(type: type)
+    beginScope()
+
+    consume(type: .leftParen, message: "Expect '(' after function name.")
+    if check(.rightParen) == false {
+      repeat {
+        current.function.arity += 1
+        if current.function.arity > 255 {
+          errorAtCurrent(message: "Can't have more than 255 parameters.")
+        }
+        let constant = parseVariable(errorMessage: "Expect parameter name.")
+        defineVariable(constant)
+      } while match(.comma)
+    }
+    consume(type: .rightParen, message: "Expect ')' after parameters.")
+    consume(type: .leftBrace, message: "Expect '{' before function body.")
+    block()
+
+    let function = endCompiler()
+    emitBytes(opCode: .constant, byte: makeConstant(.object(.function(function))))
+  }
+
   private static func expression() {
     parsePrecedence(.assignment)
   }
@@ -260,6 +310,11 @@ enum Compiler {
     case .slash: emitOpCode(.divide)
     default: return // Unreachable.
     }
+  }
+
+  private static func call(_: Bool) {
+    let argCount = argumentList()
+    emitBytes(opCode: .call, byte: argCount)
   }
 
   private static func literal(_: Bool) {
@@ -383,6 +438,21 @@ enum Compiler {
     emitBytes(opCode: .defineGlobal, byte: global)
   }
 
+  private static func argumentList() -> UInt8 {
+    var argCount: UInt8 = 0
+    if check(.rightParen) == false {
+      repeat {
+        expression()
+        if argCount == 255 {
+          error(message: "Can't have more than 255 arguments.")
+        }
+        argCount += 1
+      } while match(.comma)
+    }
+    consume(type: .rightParen, message: "Expect ')' after arguments.")
+    return argCount
+  }
+
   private static func `and`(_: Bool) {
     let endJump = emitJump(.jumpIfFalse)
 
@@ -404,6 +474,7 @@ enum Compiler {
   }
 
   private static func markInitialized() {
+    guard current.scopeDepth > 0 else { return }
     current.locals[current.locals.count - 1].depth = current.scopeDepth
   }
 
@@ -419,13 +490,19 @@ enum Compiler {
     }
   }
 
-  private static func endCompiler() {
+  private static func endCompiler() -> ObjFunction {
     emitReturn()
+    let function = current.function
     Log.print {
       if parser.hadError == false {
-        Debug.disassemble(chunk: currentChunk, name: "code")
+        Debug.disassemble(
+          chunk: currentChunk,
+          name: function.name.isEmpty ? "<script>" : function.name
+        )
       }
     }
+    current = current.enclosing
+    return function
   }
 
   private static func getRule(for type: Scanner.TokenType) -> ParseRule {
@@ -437,6 +514,7 @@ enum Compiler {
   }
 
   private static func emitReturn() {
+    emitOpCode(.nil)
     emitOpCode(.return)
   }
 
@@ -564,7 +642,7 @@ extension Compiler {
     let precedence: Precedence
 
     nonisolated(unsafe) static let rules: [Scanner.TokenType: ParseRule] = [
-      .leftParen: .init(prefix: grouping, infix: nil, precedence: .none),
+      .leftParen: .init(prefix: grouping, infix: call, precedence: .call),
       .rightParen: .init(prefix: nil, infix: nil, precedence: .none),
       .leftBrace: .init(prefix: nil, infix: nil, precedence: .none),
       .rightBrace: .init(prefix: nil, infix: nil, precedence: .none),
@@ -607,19 +685,38 @@ extension Compiler {
     ]
   }
 
-  struct Compiler {
+  final class Compiler {
+    let enclosing: Compiler!
+    var function: ObjFunction
+    var type: FunctionType
     var locals: [Local]
     var scopeDepth: Int
 
-    init() {
+    init(type: FunctionType) {
+      self.enclosing = current
+      self.function = .init()
+      self.type = type
       self.locals = []
       self.locals.reserveCapacity(Constants.uint8Count)
       self.scopeDepth = 0
+      if type != .script {
+        function.name = parser.previous.lexeme
+      }
+      locals.append(
+        .init(
+          name: .init(type: .error, lexeme: "", line: -1),
+          depth: 0
+        )
+      )
     }
   }
 
   struct Local {
     let name: Scanner.Token
     var depth: Int
+  }
+
+  enum FunctionType {
+    case function, script
   }
 }
