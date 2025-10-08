@@ -5,6 +5,7 @@ final class VM {
   private var stack: [Value]
   private var stackTop: Int
   private var globals: [String: Value]
+  private var openUpvalues: ObjUpvalue?
 
   private enum Constants {
     static let framesMax = 64
@@ -36,7 +37,10 @@ final class VM {
     }
 
     push(.object(.function(function)))
-    call(function, 0)
+    let closure = ObjClosure(function)
+    _ = pop()
+    push(.object(.closure(closure)))
+    call(closure, 0)
 
     let result = run()
     return result
@@ -47,7 +51,7 @@ final class VM {
 
     func readByte() -> UInt8 {
       defer { frame.ip += 1 }
-      return frame.function.chunk.code[frame.ip]
+      return frame.closure.function.chunk.code[frame.ip]
     }
     func readShort() -> Int {
       let msb = Int(readByte()) << 8
@@ -55,7 +59,7 @@ final class VM {
       return msb | lsb
     }
     func readConstant() -> Value {
-      frame.function.chunk.constants.values[Int(readByte())]
+      frame.closure.function.chunk.constants.values[Int(readByte())]
     }
     func binaryOp(_ op: (Value, Value) throws -> Value) throws {
       let b = pop()
@@ -71,7 +75,7 @@ final class VM {
             print("[ \(stack[i]) ]", terminator: "")
           }
           print("")
-          Debug.disassembleInstruction(at: frame.ip, in: frame.function.chunk)
+          Debug.disassembleInstruction(at: frame.ip, in: frame.closure.function.chunk)
         }
 
         let instruction = readByte()
@@ -108,6 +112,13 @@ final class VM {
             return .runtimeError
           }
           push(value)
+        case .getUpvalue:
+          let slot = Int(readByte())
+          let value = frame.closure.upvalues[slot].getValue(with: stack)
+          push(value)
+        case .setUpvalue:
+          let slot = Int(readByte())
+          frame.closure.upvalues[slot].setValue(peek(0), with: &stack)
         case .equal:
           let b = pop()
           let a = pop()
@@ -144,8 +155,25 @@ final class VM {
             return .runtimeError
           }
           frame = frames.last!
+        case .closure:
+          let function = readConstant().asObject!.asFunction!
+          let closure = ObjClosure(function)
+          push(Value(obj: .closure(closure)))
+          for _ in 0 ..< function.upvalueCount {
+            let isLocal = readByte() == 1
+            let index = Int(readByte())
+            if isLocal {
+              closure.upvalues.append(captureUpvalue(frame.slots + index))
+            } else {
+              closure.upvalues.append(frame.closure.upvalues[index])
+            }
+          }
+        case .closeUpvalue:
+          closeUpvalues(stackTop - 1)
+          _ = pop()
         case .return:
           let result = pop()
+          closeUpvalues(frame.slots)
           _ = frames.popLast()
           if frames.isEmpty {
             _ = pop()
@@ -184,8 +212,8 @@ final class VM {
   private func callValue(_ value: Value, _ argCount: UInt8) -> Bool {
     if let callee = value.asObject {
       switch callee {
-      case .function(let function):
-        return call(function, argCount)
+      case .closure(let closure):
+        return call(closure, argCount)
       case .native(let native):
         let function = native.function
         let result = function(argCount, stackTop - Int(argCount))
@@ -201,10 +229,10 @@ final class VM {
   }
 
   @discardableResult
-  private func call(_ function: ObjFunction, _ argCount: UInt8) -> Bool {
+  private func call(_ closure: ObjClosure, _ argCount: UInt8) -> Bool {
     let argCount = Int(argCount)
-    if argCount != function.arity {
-      runtimeError("Expected \(function.arity) arguments but got \(argCount).")
+    if argCount != closure.function.arity {
+      runtimeError("Expected \(closure.function.arity) arguments but got \(argCount).")
       return false
     }
     if frames.count == Constants.framesMax {
@@ -212,9 +240,39 @@ final class VM {
       return false
     }
     frames.append(
-      CallFrame(function: function, slots: stackTop - argCount - 1)
+      CallFrame(closure: closure, slots: stackTop - argCount - 1)
     )
     return true
+  }
+
+  private func captureUpvalue(_ local: Int) -> ObjUpvalue {
+    var prevUpvalue: ObjUpvalue?
+    var upvalue = openUpvalues
+    while case .slot(let location) = upvalue?.location, location > local {
+      prevUpvalue = upvalue
+      upvalue = upvalue?.next
+    }
+
+    if let upvalue, case .slot(let location) = upvalue.location, location == local {
+      return upvalue
+    }
+
+    let createdUpvalue = ObjUpvalue(slot: local)
+    createdUpvalue.next = upvalue
+
+    if prevUpvalue == nil {
+      openUpvalues = createdUpvalue
+    } else {
+      prevUpvalue?.next = createdUpvalue
+    }
+    return createdUpvalue
+  }
+
+  private func closeUpvalues(_ last: Int) {
+    while let upvalue = openUpvalues, case .slot(let location) = upvalue.location, location >= last {
+      upvalue.location = .closed(stack[location])
+      openUpvalues = upvalue.next
+    }
   }
 
   private func defineNative(name: String, function: @escaping ObjNative.NativeFn) {
@@ -233,7 +291,7 @@ final class VM {
     print(message)
 
     for frame in frames.reversed() {
-      let function = frame.function
+      let function = frame.closure.function
       let instruction = frame.ip - 1
       let name = function.name.isEmpty ? "script" : function.name
       print("[line \(function.chunk.lines[instruction])] in \(name)")
@@ -253,12 +311,12 @@ extension VM {
   }
 
   final class CallFrame {
-    let function: ObjFunction
+    let closure: ObjClosure
     var ip: Int
     let slots: Int
 
-    init(function: ObjFunction, slots: Int) {
-      self.function = function
+    init(closure: ObjClosure, slots: Int) {
+      self.closure = closure
       self.ip = 0
       self.slots = slots
     }

@@ -9,6 +9,8 @@ enum OpCode: UInt8 {
   case defineGlobal
   case setGlobal
   case getGlobal
+  case setUpvalue
+  case getUpvalue
   case equal
   case greater
   case less
@@ -23,6 +25,8 @@ enum OpCode: UInt8 {
   case jumpIfFalse
   case loop
   case call
+  case closure
+  case closeUpvalue
   case `return`
 }
 
@@ -39,6 +43,8 @@ extension OpCode: CustomStringConvertible {
     case .defineGlobal: "OP_DEFINE_GLOBAL"
     case .setGlobal: "OP_SET_GLOBAL"
     case .getGlobal: "OP_GET_GLOBAL"
+    case .setUpvalue: "OP_SET_UPVALUE"
+    case .getUpvalue: "OP_GET_UPVALUE"
     case .equal: "OP_EQUAL"
     case .greater: "OP_GREATER"
     case .less: "OP_LESS"
@@ -53,6 +59,8 @@ extension OpCode: CustomStringConvertible {
     case .jumpIfFalse: "OP_JUMP_IF_FALSE"
     case .loop: "OP_LOOP"
     case .call: "OP_CALL"
+    case .closure: "OP_CLOSURE"
+    case .closeUpvalue: "OP_CLOSE_UPVALUE"
     case .return: "OP_RETURN"
     }
   }

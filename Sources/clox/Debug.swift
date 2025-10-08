@@ -36,14 +36,31 @@ enum Debug {
       .negate,
       .not,
       .print,
+      .closeUpvalue,
       .return:
       return simpleInstruction(opCode, offset: offset)
-    case .setLocal, .getLocal, .call:
+    case .setLocal, .getLocal, .call, .setUpvalue, .getUpvalue:
       return byteInstruction(opCode, chunk: chunk, offset: offset)
     case .jump, .jumpIfFalse:
       return jumpInstruction(opCode, sign: 1, chunk: chunk, offset: offset)
     case .loop:
       return jumpInstruction(opCode, sign: -1, chunk: chunk, offset: offset)
+    case .closure:
+      var newOffset = offset + 1
+      let constant = chunk.code[newOffset]
+      newOffset += 1
+      print(String(format: "%-16@ %4d ", opCode!.description, constant), terminator: "")
+      let value = chunk.constants.values[Int(constant)]
+      print("\(value.description)")
+      let function = value.asObject!.asFunction!
+      for _ in 0 ..< function.upvalueCount {
+        let isLocal = chunk.code[newOffset] == 1
+        newOffset += 1
+        let index = chunk.code[newOffset]
+        newOffset += 1
+        print(String(format: "%04d      |                     %@ %d", newOffset - 2, isLocal ? "local" : "upvalue", index))
+      }
+      return newOffset
     case .none:
       print("Unknown opcode \(instruction)")
       return offset + 1

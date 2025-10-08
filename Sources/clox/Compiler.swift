@@ -244,7 +244,8 @@ enum Compiler {
   }
 
   private static func function(type: FunctionType) {
-    current = Compiler(type: type)
+    let compiler = Compiler(type: type)
+    current = compiler
     beginScope()
 
     consume(type: .leftParen, message: "Expect '(' after function name.")
@@ -263,7 +264,11 @@ enum Compiler {
     block()
 
     let function = endCompiler()
-    emitBytes(opCode: .constant, byte: makeConstant(.object(.function(function))))
+    emitBytes(opCode: .closure, byte: makeConstant(.object(.function(function))))
+    for i in 0 ..< function.upvalueCount {
+      emitByte(compiler.upvalues[i].isLocal ? 1 : 0)
+      emitByte(compiler.upvalues[i].index)
+    }
   }
 
   private static func expression() {
@@ -343,9 +348,15 @@ enum Compiler {
       getOp = .getLocal
       setOp = .setLocal
     } else {
-      arg = Int(identifierConstant(name))
-      getOp = .getGlobal
-      setOp = .setGlobal
+      arg = resolveUpvalue(compiler: current, name: name)
+      if arg != -1 {
+        getOp = .getUpvalue;
+        setOp = .setUpvalue;
+      } else {
+        arg = Int(identifierConstant(name))
+        getOp = .getGlobal
+        setOp = .setGlobal
+      }
     }
     if canAssign && match(.equal) {
       expression()
@@ -414,7 +425,7 @@ enum Compiler {
       error(message: "Too many local variables in function.")
       return
     }
-    let local = Local(name: name, depth: -1)
+    let local = Local(name: name, depth: -1, isCaptured: false)
     current.locals.append(local)
   }
 
@@ -428,6 +439,41 @@ enum Compiler {
       }
     }
     return -1
+  }
+
+  private static func resolveUpvalue(compiler: Compiler, name: Scanner.Token) -> Int {
+    guard let enclosing = compiler.enclosing else { return -1 }
+
+    let local = resolveLocal(compiler: enclosing, name: name)
+    if local != -1 {
+      compiler.enclosing.locals[local].isCaptured = true
+      return addUpvalue(compiler, index: UInt8(local), isLocal: true)
+    }
+    let upvalue = resolveUpvalue(compiler: compiler.enclosing, name: name)
+    if upvalue != -1 {
+      return addUpvalue(compiler, index: UInt8(upvalue), isLocal: false)
+    }
+
+    return -1
+  }
+
+  private static func addUpvalue(_ compiler: Compiler, index: UInt8, isLocal: Bool) -> Int {
+    let existing = compiler.upvalues
+      .enumerated()
+      .first { _, element in
+        element.index == index && element.isLocal == isLocal
+      }
+    if let (index, _) = existing {
+      return index
+    }
+    let upvalueCount = compiler.function.upvalueCount
+    if upvalueCount == Constants.uint8Count {
+      error(message: "Too many closure variables in function.")
+      return 0
+    }
+    compiler.upvalues.append(Upvalue(index: index, isLocal: isLocal))
+    compiler.function.upvalueCount += 1
+    return upvalueCount
   }
 
   private static func defineVariable(_ global: UInt8) {
@@ -485,7 +531,11 @@ enum Compiler {
   private static func endScope() {
     current.scopeDepth -= 1
     while let last = current.locals.last, last.depth > current.scopeDepth {
-      emitOpCode(.pop)
+      if last.isCaptured {
+        emitOpCode(.closeUpvalue)
+      } else {
+        emitOpCode(.pop)
+      }
       _ = current.locals.popLast()
     }
   }
@@ -690,6 +740,7 @@ extension Compiler {
     var function: ObjFunction
     var type: FunctionType
     var locals: [Local]
+    var upvalues: [Upvalue]
     var scopeDepth: Int
 
     init(type: FunctionType) {
@@ -698,6 +749,8 @@ extension Compiler {
       self.type = type
       self.locals = []
       self.locals.reserveCapacity(Constants.uint8Count)
+      self.upvalues = []
+      self.upvalues.reserveCapacity(Constants.uint8Count)
       self.scopeDepth = 0
       if type != .script {
         function.name = parser.previous.lexeme
@@ -705,7 +758,8 @@ extension Compiler {
       locals.append(
         .init(
           name: .init(type: .error, lexeme: "", line: -1),
-          depth: 0
+          depth: 0,
+          isCaptured: false
         )
       )
     }
@@ -714,6 +768,12 @@ extension Compiler {
   struct Local {
     let name: Scanner.Token
     var depth: Int
+    var isCaptured: Bool
+  }
+
+  struct Upvalue {
+    let index: UInt8
+    let isLocal: Bool
   }
 
   enum FunctionType {
