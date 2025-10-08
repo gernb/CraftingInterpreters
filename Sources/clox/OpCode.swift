@@ -11,6 +11,8 @@ enum OpCode: UInt8 {
   case getGlobal
   case setUpvalue
   case getUpvalue
+  case setProperty
+  case getProperty
   case equal
   case greater
   case less
@@ -28,6 +30,7 @@ enum OpCode: UInt8 {
   case closure
   case closeUpvalue
   case `return`
+  case `class`
 }
 
 extension OpCode: CustomStringConvertible {
@@ -45,6 +48,8 @@ extension OpCode: CustomStringConvertible {
     case .getGlobal: "OP_GET_GLOBAL"
     case .setUpvalue: "OP_SET_UPVALUE"
     case .getUpvalue: "OP_GET_UPVALUE"
+    case .setProperty: "OP_SET_PROPERTY"
+    case .getProperty: "OP_GET_PROPERTY"
     case .equal: "OP_EQUAL"
     case .greater: "OP_GREATER"
     case .less: "OP_LESS"
@@ -62,6 +67,7 @@ extension OpCode: CustomStringConvertible {
     case .closure: "OP_CLOSURE"
     case .closeUpvalue: "OP_CLOSE_UPVALUE"
     case .return: "OP_RETURN"
+    case .class: "OP_CLASS"
     }
   }
 }

@@ -20,7 +20,7 @@ enum Debug {
     let instruction = chunk.code[offset]
     let opCode = OpCode(rawValue: instruction)
     switch opCode {
-    case .constant, .defineGlobal, .setGlobal, .getGlobal:
+    case .constant, .defineGlobal, .setGlobal, .getGlobal, .class, .setProperty, .getProperty:
       return constantInstruction(opCode, chunk: chunk, offset: offset)
     case .nil,
       .true,

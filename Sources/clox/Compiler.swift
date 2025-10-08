@@ -40,7 +40,9 @@ enum Compiler {
   }
 
   private static func declaration() {
-    if match(.fun) {
+    if match(.class) {
+      classDeclaration()
+    } else if match(.fun) {
       funDeclaration()
     } else if match(.var) {
       varDeclaration()
@@ -51,6 +53,18 @@ enum Compiler {
     if parser.panicMode {
       synchronize()
     }
+  }
+
+  private static func classDeclaration() {
+    consume(type: .identifier, message: "Expect class name.")
+    let nameConstant = identifierConstant(parser.previous)
+    declareVariable()
+
+    emitBytes(opCode: .class, byte: nameConstant)
+    defineVariable(nameConstant)
+
+    consume(type: .leftBrace, message: "Expect '{' before class body.")
+    consume(type: .rightBrace, message: "Expect '}' after class body.")
   }
 
   private static func funDeclaration() {
@@ -320,6 +334,18 @@ enum Compiler {
   private static func call(_: Bool) {
     let argCount = argumentList()
     emitBytes(opCode: .call, byte: argCount)
+  }
+
+  private static func dot(canAssign: Bool) {
+    consume(type: .identifier, message: "Expect property name after '.'.")
+    let name = identifierConstant(parser.previous)
+
+    if canAssign && match(.equal) {
+      expression()
+      emitBytes(opCode: .setProperty, byte: name)
+    } else {
+      emitBytes(opCode: .getProperty, byte: name)
+    }
   }
 
   private static func literal(_: Bool) {
@@ -697,7 +723,7 @@ extension Compiler {
       .leftBrace: .init(prefix: nil, infix: nil, precedence: .none),
       .rightBrace: .init(prefix: nil, infix: nil, precedence: .none),
       .comma: .init(prefix: nil, infix: nil, precedence: .none),
-      .dot: .init(prefix: nil, infix: nil, precedence: .none),
+      .dot: .init(prefix: nil, infix: dot, precedence: .call),
       .minus: .init(prefix: unary, infix: binary, precedence: .term),
       .plus: .init(prefix: nil, infix: binary, precedence: .term),
       .semicolon: .init(prefix: nil, infix: nil, precedence: .none),

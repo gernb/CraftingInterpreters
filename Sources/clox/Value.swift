@@ -40,6 +40,10 @@ enum Value {
     guard case .object = self else { return false }
     return true
   }
+  var isInstance: Bool {
+    guard let obj = asObject else { return false }
+    return obj.isInstance
+  }
 
   var type: ValueType {
     switch self {

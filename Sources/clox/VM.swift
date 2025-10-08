@@ -119,6 +119,31 @@ final class VM {
         case .setUpvalue:
           let slot = Int(readByte())
           frame.closure.upvalues[slot].setValue(peek(0), with: &stack)
+        case .getProperty:
+          guard peek(0).isInstance else {
+            runtimeError("Only instances have properties.")
+            return .runtimeError
+          }
+          let instance = peek(0).asObject!.asInstance!
+          let name = readConstant().asString!
+          if let value = instance.fields[name] {
+            _ = pop() // Instance.
+            push(value)
+          } else {
+            runtimeError("Undefined property '\(name)'.")
+            return .runtimeError
+          }
+        case .setProperty:
+          guard peek(1).isInstance else {
+            runtimeError("Only instances have properties.")
+            return .runtimeError
+          }
+          let instance = peek(1).asObject!.asInstance!
+          let name = readConstant().asString!
+          instance.fields[name] = peek(0)
+          let value = pop()
+          _ = pop()
+          push(value)
         case .equal:
           let b = pop()
           let a = pop()
@@ -182,6 +207,9 @@ final class VM {
           stackTop = frame.slots
           push(result)
           frame = frames.last!
+        case .class:
+          let name = readConstant().asString!
+          push(.object(.class(ObjClass(name: name))))
 
         case .none:
           fatalError()
@@ -212,6 +240,9 @@ final class VM {
   private func callValue(_ value: Value, _ argCount: UInt8) -> Bool {
     if let callee = value.asObject {
       switch callee {
+      case .class(let klass):
+        stack[stackTop - Int(argCount) - 1] = .object(.instance(.init(klass)))
+        return true
       case .closure(let closure):
         return call(closure, argCount)
       case .native(let native):

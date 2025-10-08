@@ -1,12 +1,16 @@
 enum Obj {
+  case `class`(ObjClass)
   case closure(ObjClosure)
   case function(ObjFunction)
+  case instance(ObjInstance)
   case native(ObjNative)
   case string(String)
   case upvalue(ObjUpvalue)
 
+  var isClass: Bool { type == .class }
   var isClosure: Bool { type == .closure }
   var isFunction: Bool { type == .function }
+  var isInstance: Bool { type == .instance }
   var isNative: Bool { type == .native }
   var isString: Bool { type == .string }
 
@@ -14,8 +18,16 @@ enum Obj {
     guard case .closure(let value) = self else { return nil }
     return value
   }
+  var asClass: ObjClass? {
+    guard case .class(let value) = self else { return nil }
+    return value
+  }
   var asFunction: ObjFunction? {
     guard case .function(let value) = self else { return nil }
+    return value
+  }
+  var asInstance: ObjInstance? {
+    guard case .instance(let value) = self else { return nil }
     return value
   }
   var asNative: ObjNative.NativeFn? {
@@ -29,8 +41,10 @@ enum Obj {
 
   var type: ObjType {
     switch self {
+    case .class: .class
     case .closure: .closure
     case .function: .function
+    case .instance: .instance
     case .native: .native
     case .string: .string
     case .upvalue: .upvalue
@@ -38,7 +52,7 @@ enum Obj {
   }
 
   enum ObjType {
-    case closure, function, native, string, upvalue
+    case `class`, closure, function, instance, native, string, upvalue
   }
 }
 
@@ -47,6 +61,8 @@ extension Obj {
     guard lhs.type == rhs.type else { return false }
     return switch (lhs.type) {
     case .closure, .function, .native, .upvalue: false
+    case .class: lhs.asClass?.name == rhs.asClass?.name
+    case .instance: lhs.asInstance === rhs.asInstance
     case .string: lhs.asString == rhs.asString
     }
   }
@@ -55,8 +71,10 @@ extension Obj {
 extension Obj: CustomStringConvertible {
   var description: String {
     switch self {
+    case .class(let value): value.name
     case .closure(let value): value.function.name.isEmpty ? "<script>" : "<fn \(value.function.name)>"
     case .function(let value): value.name.isEmpty ? "<script>" : "<fn \(value.name)>"
+    case .instance(let value): "\(value.klass.name) instance"
     case .native: "<native fn>"
     case .string(let value): value
     case .upvalue: "upvalue"
@@ -82,6 +100,11 @@ final class ObjFunction {
     self.chunk = Chunk()
     self.name = ""
   }
+}
+
+struct ObjNative {
+  typealias NativeFn = (_ argCount: UInt8, _ args: Int) -> Value
+  let function: NativeFn
 }
 
 final class ObjClosure {
@@ -122,7 +145,16 @@ final class ObjUpvalue {
   }
 }
 
-struct ObjNative {
-  typealias NativeFn = (_ argCount: UInt8, _ args: Int) -> Value
-  let function: NativeFn
+struct ObjClass {
+  let name: String
+}
+
+final class ObjInstance {
+  let klass: ObjClass
+  var fields: [String: Value]
+
+  init(_ klass: ObjClass) {
+    self.klass = klass
+    self.fields = [:]
+  }
 }
