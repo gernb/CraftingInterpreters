@@ -130,9 +130,14 @@ extension Value: CustomStringConvertible {
     switch self {
     case .bool(let value): "\(value)"
     case .nil: "nil"
-    case .number(let value): "\(value)"
+    case .number(let value): stringify(value)
     case .object(let value): "\(value.description)"
     }
+  }
+
+  private func stringify(_ number: Double) -> String {
+    let value = "\(number)"
+    return value.hasSuffix(".0") ? String(value.dropLast(2)) : value
   }
 }
 
