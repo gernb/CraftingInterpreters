@@ -23,6 +23,10 @@ enum Value {
     guard case .object(.closure(let value)) = self else { return nil }
     return value
   }
+  var asClass: ObjClass? {
+    guard case .object(.class(let value)) = self else { return nil }
+    return value
+  }
 
   var isBool: Bool {
     guard case .bool = self else { return false }

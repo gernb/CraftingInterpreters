@@ -13,6 +13,7 @@ enum OpCode: UInt8 {
   case getUpvalue
   case setProperty
   case getProperty
+  case getSuper
   case equal
   case greater
   case less
@@ -28,10 +29,12 @@ enum OpCode: UInt8 {
   case loop
   case call
   case invoke
+  case superInvoke
   case closure
   case closeUpvalue
   case `return`
   case `class`
+  case inherit
   case method
 }
 
@@ -52,6 +55,7 @@ extension OpCode: CustomStringConvertible {
     case .getUpvalue: "OP_GET_UPVALUE"
     case .setProperty: "OP_SET_PROPERTY"
     case .getProperty: "OP_GET_PROPERTY"
+    case .getSuper: "OP_GET_SUPER"
     case .equal: "OP_EQUAL"
     case .greater: "OP_GREATER"
     case .less: "OP_LESS"
@@ -67,10 +71,12 @@ extension OpCode: CustomStringConvertible {
     case .loop: "OP_LOOP"
     case .call: "OP_CALL"
     case .invoke: "OP_INVOKE"
+    case .superInvoke: "OP_SUPER_INVOKE"
     case .closure: "OP_CLOSURE"
     case .closeUpvalue: "OP_CLOSE_UPVALUE"
     case .return: "OP_RETURN"
     case .class: "OP_CLASS"
+    case .inherit: "OP_INHERIT"
     case .method: "OP_METHOD"
     }
   }

@@ -143,6 +143,12 @@ final class VM {
           let value = pop()
           pop()
           push(value)
+        case .getSuper:
+          let name = readConstant().asString!
+          let superclass = pop().asClass!
+          if bindMethod(superclass, name) == false {
+            return .runtimeError
+          }
         case .equal:
           let b = pop()
           let a = pop()
@@ -186,6 +192,14 @@ final class VM {
             return .runtimeError
           }
           frame = frames.last!
+        case .superInvoke:
+          let method = readConstant().asString!
+          let argCount = readByte()
+          let superclass = pop().asClass!
+          if invokeFromClass(superclass, method, argCount) == false {
+            return .runtimeError
+          }
+          frame = frames.last!
         case .closure:
           let function = readConstant().asObject!.asFunction!
           let closure = ObjClosure(function)
@@ -216,6 +230,14 @@ final class VM {
         case .class:
           let name = readConstant().asString!
           push(.object(.class(ObjClass(name: name))))
+        case .inherit:
+          guard let superclass = peek(1).asClass else {
+            runtimeError("Superclass must be a class.")
+            return .runtimeError
+          }
+          let subclass = peek(0).asClass!
+          subclass.methods = superclass.methods
+          pop() // Subclass.
         case .method:
           let name = readConstant().asString!
           defineMethod(name: name)

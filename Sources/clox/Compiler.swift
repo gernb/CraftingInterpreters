@@ -66,7 +66,22 @@ enum Compiler {
     emitBytes(opCode: .class, byte: nameConstant)
     defineVariable(nameConstant)
 
-    currentClass = ClassCompiler(currentClass)
+    let classCompiler = ClassCompiler(currentClass)
+    currentClass = classCompiler
+
+    if match(.less) {
+      consume(type: .identifier, message: "Expect superclass name.")
+      variable(canAssign: false)
+      if identifiersEqual(className, parser.previous) {
+        error(message: "A class can't inherit from itself.")
+      }
+      beginScope()
+      addLocal(syntheticToken("super"))
+      defineVariable(0)
+      namedVariable(className, canAssign: false)
+      emitOpCode(.inherit)
+      classCompiler.hasSuperclass = true
+    }
 
     namedVariable(className, canAssign: false)
     consume(type: .leftBrace, message: "Expect '{' before class body.")
@@ -75,6 +90,10 @@ enum Compiler {
     }
     consume(type: .rightBrace, message: "Expect '}' after class body.")
     emitOpCode(.pop)
+
+    if classCompiler.hasSuperclass {
+      endScope()
+    }
 
     currentClass = currentClass?.enclosing
   }
@@ -424,6 +443,35 @@ enum Compiler {
       emitBytes(opCode: setOp, byte: UInt8(arg))
     } else {
       emitBytes(opCode: getOp, byte: UInt8(arg))
+    }
+  }
+
+  private static func syntheticToken(_ text: String) -> Scanner.Token {
+    .init(
+      type: .error,
+      lexeme: text,
+      line: -1
+    )
+  }
+
+  private static func super_(_: Bool) {
+    if currentClass == nil {
+      error(message: "Can't use 'super' outside of a class.")
+    } else if currentClass!.hasSuperclass == false {
+      error(message: "Can't use 'super' in a class with no superclass.")
+    }
+    consume(type: .dot, message: "Expect '.' after 'super'.")
+    consume(type: .identifier, message: "Expect superclass method name.")
+    let name = identifierConstant(parser.previous)
+    namedVariable(syntheticToken("this"), canAssign: false)
+    if match(.leftParen) {
+      let argCount = argumentList()
+      namedVariable(syntheticToken("super"), canAssign: false)
+      emitBytes(opCode: .superInvoke, byte: name)
+      emitByte(argCount)
+    } else {
+      namedVariable(syntheticToken("super"), canAssign: false)
+      emitBytes(opCode: .getSuper, byte: name)
     }
   }
 
@@ -790,7 +838,7 @@ extension Compiler {
       .or: .init(prefix: nil, infix: `or`, precedence: .none),
       .print: .init(prefix: nil, infix: nil, precedence: .none),
       .return: .init(prefix: nil, infix: nil, precedence: .none),
-      .super: .init(prefix: nil, infix: nil, precedence: .none),
+      .super: .init(prefix: super_, infix: nil, precedence: .none),
       .this: .init(prefix: this, infix: nil, precedence: .none),
       .true: .init(prefix: literal, infix: nil, precedence: .none),
       .var: .init(prefix: nil, infix: nil, precedence: .none),
@@ -832,9 +880,11 @@ extension Compiler {
 
   final class ClassCompiler {
     let enclosing: ClassCompiler?
+    var hasSuperclass: Bool
 
     init(_ enclosing: ClassCompiler? = nil) {
       self.enclosing = enclosing
+      self.hasSuperclass = false
     }
   }
 

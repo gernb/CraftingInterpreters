@@ -20,7 +20,7 @@ enum Debug {
     let instruction = chunk.code[offset]
     let opCode = OpCode(rawValue: instruction)
     switch opCode {
-    case .constant, .defineGlobal, .setGlobal, .getGlobal, .class, .setProperty, .getProperty, .method:
+    case .constant, .defineGlobal, .setGlobal, .getGlobal, .class, .setProperty, .getProperty, .method, .getSuper:
       return constantInstruction(opCode, chunk: chunk, offset: offset)
     case .nil,
       .true,
@@ -37,7 +37,8 @@ enum Debug {
       .not,
       .print,
       .closeUpvalue,
-      .return:
+      .return,
+      .inherit:
       return simpleInstruction(opCode, offset: offset)
     case .setLocal, .getLocal, .call, .setUpvalue, .getUpvalue:
       return byteInstruction(opCode, chunk: chunk, offset: offset)
@@ -45,7 +46,7 @@ enum Debug {
       return jumpInstruction(opCode, sign: 1, chunk: chunk, offset: offset)
     case .loop:
       return jumpInstruction(opCode, sign: -1, chunk: chunk, offset: offset)
-    case .invoke:
+    case .invoke, .superInvoke:
       return invokeInstruction(opCode, chunk: chunk, offset: offset)
     case .closure:
       var newOffset = offset + 1
