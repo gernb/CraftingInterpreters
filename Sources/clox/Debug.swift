@@ -20,7 +20,7 @@ enum Debug {
     let instruction = chunk.code[offset]
     let opCode = OpCode(rawValue: instruction)
     switch opCode {
-    case .constant, .defineGlobal, .setGlobal, .getGlobal, .class, .setProperty, .getProperty:
+    case .constant, .defineGlobal, .setGlobal, .getGlobal, .class, .setProperty, .getProperty, .method:
       return constantInstruction(opCode, chunk: chunk, offset: offset)
     case .nil,
       .true,
@@ -45,6 +45,8 @@ enum Debug {
       return jumpInstruction(opCode, sign: 1, chunk: chunk, offset: offset)
     case .loop:
       return jumpInstruction(opCode, sign: -1, chunk: chunk, offset: offset)
+    case .invoke:
+      return invokeInstruction(opCode, chunk: chunk, offset: offset)
     case .closure:
       var newOffset = offset + 1
       let constant = chunk.code[newOffset]
@@ -85,6 +87,14 @@ enum Debug {
     var jump = Int(chunk.code[offset + 1]) << 8
     jump |= Int(chunk.code[offset + 2])
     print(String(format: "%-16@ %4d -> %d", opCode.description, offset, offset + 3 + sign * jump))
+    return offset + 3
+  }
+
+  private static func invokeInstruction(_ opCode: OpCode!, chunk: Chunk, offset: Int) -> Int {
+    let constant = chunk.code[offset + 1]
+    let argCount = chunk.code[offset + 2]
+    let value = chunk.constants.values[Int(constant)]
+    print(String(format: "%-16@ (%d args) %4d '%@'", opCode.description, argCount, constant, value.description))
     return offset + 3
   }
 

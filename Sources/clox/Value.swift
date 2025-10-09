@@ -19,6 +19,10 @@ enum Value {
     guard case .object(let value) = self else { return nil }
     return value
   }
+  var asClosure: ObjClosure? {
+    guard case .object(.closure(let value)) = self else { return nil }
+    return value
+  }
 
   var isBool: Bool {
     guard case .bool = self else { return false }

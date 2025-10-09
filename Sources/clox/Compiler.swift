@@ -2,6 +2,7 @@ enum Compiler {
   nonisolated(unsafe) private static var scanner: Scanner!
   nonisolated(unsafe) private static var parser: Parser!
   nonisolated(unsafe) private static var current: Compiler!
+  nonisolated(unsafe) private static var currentClass: ClassCompiler?
 
   private static var currentChunk: Chunk {
     get { current.function.chunk }
@@ -10,6 +11,7 @@ enum Compiler {
 
   enum Constants {
     static let uint8Count = Int(UInt8.max) + 1
+    static let initString = "init"
   }
 
   static func compile(_ source: String) -> ObjFunction? {
@@ -57,14 +59,24 @@ enum Compiler {
 
   private static func classDeclaration() {
     consume(type: .identifier, message: "Expect class name.")
+    let className = parser.previous
     let nameConstant = identifierConstant(parser.previous)
     declareVariable()
 
     emitBytes(opCode: .class, byte: nameConstant)
     defineVariable(nameConstant)
 
+    currentClass = ClassCompiler(currentClass)
+
+    namedVariable(className, canAssign: false)
     consume(type: .leftBrace, message: "Expect '{' before class body.")
+    while check(.rightBrace) == false && check(.eof) == false {
+      method()
+    }
     consume(type: .rightBrace, message: "Expect '}' after class body.")
+    emitOpCode(.pop)
+
+    currentClass = currentClass?.enclosing
   }
 
   private static func funDeclaration() {
@@ -198,6 +210,9 @@ enum Compiler {
     if match(.semicolon) {
       emitReturn()
     } else {
+      if current.type == .initializer {
+        error(message: "Can't return a value from an initializer.")
+      }
       expression()
       consume(type: .semicolon, message: "Expect ';' after return value.")
       emitOpCode(.return)
@@ -285,6 +300,22 @@ enum Compiler {
     }
   }
 
+  private static func method() {
+    consume(type: .identifier, message: "Expect method name.")
+    let constant = identifierConstant(parser.previous)
+    let type: FunctionType = parser.previous.lexeme == Constants.initString ? .initializer : .method
+    function(type: type)
+    emitBytes(opCode: .method, byte: constant)
+  }
+
+  private static func this(_: Bool) {
+    guard currentClass != nil else {
+      error(message: "Can't use 'this' outside of a class.")
+      return
+    }
+    variable(canAssign: false)
+  }
+
   private static func expression() {
     parsePrecedence(.assignment)
   }
@@ -343,6 +374,10 @@ enum Compiler {
     if canAssign && match(.equal) {
       expression()
       emitBytes(opCode: .setProperty, byte: name)
+    } else if match(.leftParen) {
+      let argCount = argumentList()
+      emitBytes(opCode: .invoke, byte: name)
+      emitByte(argCount)
     } else {
       emitBytes(opCode: .getProperty, byte: name)
     }
@@ -590,7 +625,11 @@ enum Compiler {
   }
 
   private static func emitReturn() {
-    emitOpCode(.nil)
+    if current.type == .initializer {
+      emitBytes(opCode: .getLocal, byte: 0)
+    } else {
+      emitOpCode(.nil)
+    }
     emitOpCode(.return)
   }
 
@@ -752,7 +791,7 @@ extension Compiler {
       .print: .init(prefix: nil, infix: nil, precedence: .none),
       .return: .init(prefix: nil, infix: nil, precedence: .none),
       .super: .init(prefix: nil, infix: nil, precedence: .none),
-      .this: .init(prefix: nil, infix: nil, precedence: .none),
+      .this: .init(prefix: this, infix: nil, precedence: .none),
       .true: .init(prefix: literal, infix: nil, precedence: .none),
       .var: .init(prefix: nil, infix: nil, precedence: .none),
       .while: .init(prefix: nil, infix: nil, precedence: .none),
@@ -783,11 +822,19 @@ extension Compiler {
       }
       locals.append(
         .init(
-          name: .init(type: .error, lexeme: "", line: -1),
+          name: .init(type: .error, lexeme: type != .function ? "this" : "", line: -1),
           depth: 0,
           isCaptured: false
         )
       )
+    }
+  }
+
+  final class ClassCompiler {
+    let enclosing: ClassCompiler?
+
+    init(_ enclosing: ClassCompiler? = nil) {
+      self.enclosing = enclosing
     }
   }
 
@@ -803,6 +850,6 @@ extension Compiler {
   }
 
   enum FunctionType {
-    case function, script
+    case function, initializer, method, script
   }
 }

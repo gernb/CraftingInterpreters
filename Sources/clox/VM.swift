@@ -38,7 +38,7 @@ final class VM {
 
     push(.object(.function(function)))
     let closure = ObjClosure(function)
-    _ = pop()
+    pop()
     push(.object(.closure(closure)))
     call(closure, 0)
 
@@ -87,7 +87,7 @@ final class VM {
         case .nil: push(nil)
         case .true: push(true)
         case .false: push(false)
-        case .pop: _ = pop()
+        case .pop: pop()
         case .setLocal:
           let slot = Int(readByte())
           stack[frame.slots + slot] = peek(0) 
@@ -97,7 +97,7 @@ final class VM {
         case .defineGlobal:
           let name = readConstant().asString!
           globals[name] = peek(0)
-          _ = pop()
+          pop()
         case .setGlobal:
           let name = readConstant().asString!
           guard globals[name] != nil else {
@@ -127,10 +127,9 @@ final class VM {
           let instance = peek(0).asObject!.asInstance!
           let name = readConstant().asString!
           if let value = instance.fields[name] {
-            _ = pop() // Instance.
+            pop() // Instance.
             push(value)
-          } else {
-            runtimeError("Undefined property '\(name)'.")
+          } else if bindMethod(instance.klass, name) == false {
             return .runtimeError
           }
         case .setProperty:
@@ -142,7 +141,7 @@ final class VM {
           let name = readConstant().asString!
           instance.fields[name] = peek(0)
           let value = pop()
-          _ = pop()
+          pop()
           push(value)
         case .equal:
           let b = pop()
@@ -180,6 +179,13 @@ final class VM {
             return .runtimeError
           }
           frame = frames.last!
+        case .invoke:
+          let method = readConstant().asString!
+          let argCount = readByte()
+          if invoke(method, argCount) == false {
+            return .runtimeError
+          }
+          frame = frames.last!
         case .closure:
           let function = readConstant().asObject!.asFunction!
           let closure = ObjClosure(function)
@@ -195,13 +201,13 @@ final class VM {
           }
         case .closeUpvalue:
           closeUpvalues(stackTop - 1)
-          _ = pop()
+          pop()
         case .return:
           let result = pop()
           closeUpvalues(frame.slots)
           _ = frames.popLast()
           if frames.isEmpty {
-            _ = pop()
+            pop()
             return .ok
           }
           stackTop = frame.slots
@@ -210,6 +216,9 @@ final class VM {
         case .class:
           let name = readConstant().asString!
           push(.object(.class(ObjClass(name: name))))
+        case .method:
+          let name = readConstant().asString!
+          defineMethod(name: name)
 
         case .none:
           fatalError()
@@ -228,6 +237,7 @@ final class VM {
     stackTop += 1
   }
 
+  @discardableResult
   private func pop() -> Value {
     stackTop -= 1
     return stack[stackTop]
@@ -240,8 +250,17 @@ final class VM {
   private func callValue(_ value: Value, _ argCount: UInt8) -> Bool {
     if let callee = value.asObject {
       switch callee {
+      case .boundMethod(let bound):
+        stack[stackTop - Int(argCount) - 1] = bound.receiver
+        return call(bound.method, argCount)
       case .class(let klass):
         stack[stackTop - Int(argCount) - 1] = .object(.instance(.init(klass)))
+        if let value = klass.methods[Compiler.Constants.initString] {
+          return call(value.asClosure!, argCount)
+        } else if argCount > 0 {
+          runtimeError("Expected 0 arguments but got \(argCount).")
+          return false
+        }
         return true
       case .closure(let closure):
         return call(closure, argCount)
@@ -276,6 +295,28 @@ final class VM {
     return true
   }
 
+  private func invoke(_ name: String, _ argCount: UInt8) -> Bool {
+    guard case .object(.instance(let instance)) = peek(Int(argCount)) else {
+      runtimeError("Only instances have methods.")
+      return false
+    }
+
+    if let value = instance.fields[name] {
+      stack[stackTop - Int(argCount) - 1] = value
+      return callValue(value, argCount)
+    }
+
+    return invokeFromClass(instance.klass, name, argCount)
+  }
+
+  private func invokeFromClass(_ klass: ObjClass, _ name: String, _ argCount: UInt8) -> Bool {
+    guard let method = klass.methods[name] else {
+      runtimeError("Undefined property '\(name)'.")
+      return false
+    }
+    return call(method.asClosure!, argCount)
+  }
+
   private func captureUpvalue(_ local: Int) -> ObjUpvalue {
     var prevUpvalue: ObjUpvalue?
     var upvalue = openUpvalues
@@ -304,6 +345,25 @@ final class VM {
       upvalue.location = .closed(stack[location])
       openUpvalues = upvalue.next
     }
+  }
+
+  private func defineMethod(name: String) {
+    let method = peek(0)
+    let klass = peek(1).asObject!.asClass!
+    klass.methods[name] = method
+    pop()
+  }
+
+  private func bindMethod(_ klass: ObjClass, _ name: String) -> Bool {
+    guard let method = klass.methods[name] else {
+      runtimeError("Undefined property '\(name)'.")
+      return false
+    }
+
+    let bound = ObjBoundMethod(receiver: peek(0), method: method.asClosure!)
+    pop()
+    push(.object(.boundMethod(bound)))
+    return true
   }
 
   private func defineNative(name: String, function: @escaping ObjNative.NativeFn) {
