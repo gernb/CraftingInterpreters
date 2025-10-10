@@ -4,6 +4,9 @@ import PackageDescription
 
 let package = Package(
   name: "CraftingInterpreters",
+  platforms: [
+    .macOS(.v26),
+  ],
   products: [
     .executable(name: "jlox", targets: ["jlox"]),
     .executable(name: "clox", targets: ["clox"]),
