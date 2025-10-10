@@ -122,12 +122,11 @@ struct ObjNative {
 
 final class ObjClosure {
   let function: ObjFunction
-  var upvalues: [ObjUpvalue]
+  let upvalues: [ObjUpvalue]
 
-  init(_ function: ObjFunction) {
+  init(_ function: ObjFunction, upvalues: [ObjUpvalue] = []) {
     self.function = function
-    self.upvalues = []
-    self.upvalues.reserveCapacity(function.upvalueCount)
+    self.upvalues = upvalues
   }
 }
 
@@ -143,14 +142,14 @@ final class ObjUpvalue {
     self.location = .slot(slot)
   }
 
-  func getValue(with stack: [Value]) -> Value {
+  func getValue(with stack: VM.Stack) -> Value {
     switch location {
     case .slot(let index): stack[index]
     case .closed(let value): value
     }
   }
 
-  func setValue(_ value: Value, with stack: inout [Value]) {
+  func setValue(_ value: Value, with stack: inout VM.Stack) {
     switch location {
     case .slot(let index): stack[index] = value
     case .closed: location = .closed(value)

@@ -1,8 +1,10 @@
 import Foundation
 
 final class VM {
-  private var frames: [CallFrame]
-  private var stack: [Value]
+  typealias Stack = InlineArray<16_384, Value>
+  private var frames: InlineArray<64, CallFrame?>
+  private var frameTop: Int
+  private var stack: Stack
   private var stackTop: Int
   private var globals: [String: Value]
   private var openUpvalues: ObjUpvalue?
@@ -13,9 +15,9 @@ final class VM {
   }
 
   init() {
-    self.frames = []
-    self.frames.reserveCapacity(Constants.framesMax)
-    self.stack = Array(repeating: nil, count: Constants.stackMax)
+    self.frames = .init(repeating: nil)
+    self.frameTop = -1
+    self.stack = .init(repeating: nil)
     self.stackTop = 0
     self.globals = [:]
 
@@ -36,9 +38,7 @@ final class VM {
       return .compileError
     }
 
-    push(.object(.function(function)))
     let closure = ObjClosure(function)
-    pop()
     push(.object(.closure(closure)))
     call(closure, 0)
 
@@ -47,7 +47,7 @@ final class VM {
   }
 
   private func run() -> InterpretResult {
-    var frame = frames.last!
+    var frame = frames[frameTop]!
 
     func readByte() -> UInt8 {
       defer { frame.ip += 1 }
@@ -184,14 +184,14 @@ final class VM {
           if callValue(peek(Int(argCount)), argCount) == false {
             return .runtimeError
           }
-          frame = frames.last!
+          frame = frames[frameTop]!
         case .invoke:
           let method = readConstant().asString!
           let argCount = readByte()
           if invoke(method, argCount) == false {
             return .runtimeError
           }
-          frame = frames.last!
+          frame = frames[frameTop]!
         case .superInvoke:
           let method = readConstant().asString!
           let argCount = readByte()
@@ -199,34 +199,35 @@ final class VM {
           if invokeFromClass(superclass, method, argCount) == false {
             return .runtimeError
           }
-          frame = frames.last!
+          frame = frames[frameTop]!
         case .closure:
           let function = readConstant().asObject!.asFunction!
-          let closure = ObjClosure(function)
-          push(Value(obj: .closure(closure)))
-          for _ in 0 ..< function.upvalueCount {
+          var upvalues: [ObjUpvalue?] = Array(repeating: nil, count: function.upvalueCount)
+          for i in 0 ..< function.upvalueCount {
             let isLocal = readByte() == 1
             let index = Int(readByte())
             if isLocal {
-              closure.upvalues.append(captureUpvalue(frame.slots + index))
+              upvalues[i] = captureUpvalue(frame.slots + index)
             } else {
-              closure.upvalues.append(frame.closure.upvalues[index])
+              upvalues[i] = frame.closure.upvalues[index]
             }
           }
+          let closure = ObjClosure(function, upvalues: upvalues.compactMap { $0 })
+          push(Value(obj: .closure(closure)))
         case .closeUpvalue:
           closeUpvalues(stackTop - 1)
           pop()
         case .return:
           let result = pop()
           closeUpvalues(frame.slots)
-          _ = frames.popLast()
-          if frames.isEmpty {
+          frameTop -= 1
+          if frameTop == -1 {
             pop()
             return .ok
           }
           stackTop = frame.slots
           push(result)
-          frame = frames.last!
+          frame = frames[frameTop]!
         case .class:
           let name = readConstant().asString!
           push(.object(.class(ObjClass(name: name))))
@@ -307,13 +308,12 @@ final class VM {
       runtimeError("Expected \(closure.function.arity) arguments but got \(argCount).")
       return false
     }
-    if frames.count == Constants.framesMax {
+    if frameTop == Constants.framesMax - 1 {
       runtimeError("Stack overflow.")
       return false
     }
-    frames.append(
-      CallFrame(closure: closure, slots: stackTop - argCount - 1)
-    )
+    frameTop += 1
+    frames[frameTop] = CallFrame(closure: closure, slots: stackTop - argCount - 1)
     return true
   }
 
@@ -403,7 +403,8 @@ final class VM {
   private func runtimeError(_ message: String) {
     print(message)
 
-    for frame in frames.reversed() {
+    for i in (0 ... frameTop).reversed() {
+      let frame = frames[i]!
       let function = frame.closure.function
       let instruction = frame.ip - 1
       let name = function.name.isEmpty ? "script" : function.name
